@@ -16,6 +16,7 @@ import Flite.WorkerWrapper
 import Control.Monad
 import Flite.Pretty
 import Flite.PRSAnalyse
+import Flite.Defunct
 
 import Debug.Trace
 
@@ -36,6 +37,7 @@ frontendM strictAnan nregs i p =
              >>= inlineTop i
              >>= return . concApps nregs
 
+             >>= return . defunctionalise
              >>= return . prsAnalyse . liftMain
 
              >>= return . caseElimWithCaseStack
