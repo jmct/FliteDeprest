@@ -1,5 +1,6 @@
 module Flite.Flite (main) where
 
+import Flite.Desugar
 import Flite.Syntax
 import Flite.ParseLib
 import Flite.Parse
