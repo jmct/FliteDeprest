@@ -14,7 +14,7 @@ examples/%.red : examples/%.hs
 examples : $(EXAMPLES)
 
 test : fl
-	for x in examples/*; do echo -n $$x && ( ./fl -r $$x > /dev/null 2>&1 ) && echo "	success" || echo "	failure" ; done
+	for x in examples/*.hs; do echo -n $$x && ( ./fl -r $$x > /dev/null 2>&1 ) && echo "	success" || echo "	failure" ; done
 
 clean :
 	rm -f Flite/*.{hi,o} Flite/Parsec/*.{hi,o} fl
