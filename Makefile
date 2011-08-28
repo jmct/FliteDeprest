@@ -9,7 +9,7 @@ trace: fl
 	./fl -r examples/Lambda.hs 2>&1 | sed 's/\([fF]unc\)/\n\1/g' > trace.txt
 
 examples/%.red : examples/%.hs
-	./fl -r $< > examples/$@
+	./fl -r $< > $@ || true
 
 examples : $(EXAMPLES)
 
