@@ -75,39 +75,43 @@ defuncAlt p (pat, ex) = ( (pat', ex'), rs'')
         (ex', rs') = defuncExp p ex
         rs'' = rs ++ rs'
 
+data AppClassification = 
+    Primitive |
+    Nullary |
+    Partial |
+    Saturated |
+    OverApplied |
+    HigherOrder |
+    HigherOrderWithPartial
+
+classifyApplication :: Prog -> Exp -> AppClassification
+classifyApplication p e@( App (Fun id) args ) =
+    if isPrimId id then
+        Primitive
+    else if arityOf p id == 0 then
+        Nullary
+    else if arityOf p id > length args then
+        Partial
+    else if arityOf p id < length args then
+        OverApplied
+    else if isFunctionAppliedToPartial p e then
+        HigherOrderWithPartial
+    else if (or $ map (isItAFunction p) args) then
+        HigherOrder
+    else
+        Saturated
+
 
 defuncApp :: Prog -> Exp -> [Exp] -> (Exp, [Exp], [Request]) -- (f', args', rs)
 defuncApp p f args =
-    case ( or $ map (isItAFunction p) args', f' ) of
-        (True, Fun _) -> 
-            if isPrimId id then
-                -- Replace applications of primitive functions with equivalent decls
-                --  so we can subsequently inline them.
-                ( Fun fakeName, args', ((fakeName, Fun id):rs') )
-            else if arity > length args' then -- Over-saturated app
-                (f', args', rs')
-            else if arity == 0 then -- top level var -- should be inlined maybe?
-                (f', args', rs')
-            else if arity < length args' then -- partial app
-                (f', args', rs')
-                -- saturate p f' args' rs'
-            else -- The straightforward case...
-                defuncApp' p f' args' rs'
-            where
-                fakeName = (specialisedName [f', Var "", Var ""])
-        {-(_, App ff, fargs) -> -- an application (partial or otherwise) passed as a function.
-            if farity == length fargs' then
-                
-            where
-                farity = arityOf p id
-                (ff', frs) = defuncExp p ff
-                (fargs', frss) = unzip $ map (defuncExp p) fargs'
-                frs' = concat (frs:frss) -}
-
-        _ -> (f', args', rs')
+    case classifyApplication p (App f' args') of
+        HigherOrderWithPartial ->
+            defuncAppWithPartiallyAppliedArg p f' args' rs'
+        HigherOrder -> 
+            defuncApp' p f' args' rs'
+        _ ->
+            (f', args', rs')
     where
-        arity = arityOf p id
-        id = getId f'
         (f', rs) = defuncExp p f
         (args', rss) = unzip $ map (defuncExp p) args
         rs' = concat (rs:rss)
@@ -127,6 +131,23 @@ defuncApp' p f args rs = (f', vArgs, rs')
             _     -> error "This shouldn't be possible!"
 
 
+isFunctionAppliedToPartial :: Prog -> Exp -> Bool
+isFunctionAppliedToPartial p e@(App (Fun _) (App (Fun id) aargs):_) =
+    if length aargs < arityOf p id then True else False
+isFunctionAppliedToPartial p e@(App (Fun _) (App (Con id) aargs):_) = 
+    if length aargs < arityOf p id then True else False
+isFunctionAppliedToPartial p _ = False
+
+
+-- Defunctionalise a function applied to a partial application of another function. Only handles a contiguous list of partial apps at the start of the arg list. Don't know how much of a problem this will be.
+defuncAppWithPartiallyAppliedArg :: Prog -> Exp -> [Exp] -> [Request] -> (Exp, [Exp], [Request])
+defuncAppWithPartiallyAppliedArg p f args@((App af aargs):as) rs = (f', args', rs')
+    where
+        args' = aargs ++ as
+        newName = specialisedName (f:args')
+        f' = Fun newName
+        rs' = (newName, (App f args)):rs
+
 partitionArgs :: Prog -> [Exp] -> ([Exp], [Exp]) -- (funcArgs, valArgs)
 partitionArgs p = partition (isItAFunction p)
 
@@ -134,6 +155,10 @@ partitionArgs p = partition (isItAFunction p)
 isItAFunction :: Prog -> Exp -> Bool
 isItAFunction p (Fun id) = if (arityOf p id) == 0 then False else True
 isItAFunction p (Con id) = True
+isItAFunction p (App (Fun id) args) =
+    if (arityOf p id) > length args
+        then True
+        else False
 isItAFunction p _ = False
 
 specialisedName :: [Exp] -> Id
@@ -144,6 +169,7 @@ specialisedName es = -- trace ("Requested name for " ++ show es) $
 getId :: Exp -> Id
 getId (Fun id) = id
 getId (Con id) = id
+getId (App (Fun id) args) = show (length args) ++ id
 getId e = ""
 
 
@@ -161,23 +187,20 @@ makeRequestedDecls p (r:rs) = makeRequestedDecls p' rs
 -- of a new Decl not being required.
 makeDeclFromRequest :: Prog -> Request -> [Decl]
 makeDeclFromRequest pr (newName, ex@(App f args)) =
-    -- trace ("Handling request for " ++ newName ++ ": " ++ show ex) $
-    case existing of
-        [] -> d   -- need to create a Decl
-            where
-                d = specialiseDecl pr specialiseMe args newName
-        ds -> []  -- declaration for this function already exists
+    case (existing, classifyApplication pr ex) of
+        ([], HigherOrderWithPartial) ->
+            inlinePartialApplication pr specialiseMe (head args) newName
+        ([], HigherOrder) -> 
+            specialiseDecl pr specialiseMe args newName
+        (_, _) -> []
     where
         existing = lookupFuncs newName pr
-        specialiseMe = case f of
-            ( Fun id ) -> lookupFuncs id pr 
-            ( Con id ) -> lookupFuncs id pr 
-            exp        -> error $ "Couldn't find a declaration for " ++ show exp
+        specialiseMe = lookupFuncs (getId f) pr
 makeDeclFromRequest pr (newName, e@(Fun id)) = [Func newName args rhs]
     where
         args = case arityOf pr id of 
-            1 -> [Var "?1"]
-            2 -> [Var "?1", Var "?2"]
+            1 -> [Var "?a"]
+            2 -> [Var "?a", Var "?b"]
         rhs = (App e args)
 makeDeclFromRequest pr e = error ("Non-application passed to function specialiser: " ++ show e)
 
@@ -209,6 +232,13 @@ specialiseDecl p [d@(Func id params rhs)] args newId =
         params' = extractSndWhereFstIsFalse $ zip whichArgsAreFunctional params 
 specialiseDecl _ _ _ newId = error $ "Couldn't honour request for " ++ newId
 
+inlinePartialApplication :: Prog -> [Decl] -> Exp -> Id -> [Decl]
+inlinePartialApplication p [d@(Func id (arg:args) rhs)] aarg id =
+    Func newId args' rhs'
+    where
+        args' = (tail aarg) ++ args
+
+
 extractSndWhereFstIsTrue :: [(Bool, b)] -> [b]
 extractSndWhereFstIsTrue = (map snd) . (filter fst)
 
@@ -239,6 +269,9 @@ replaceInAlt rs a = (replaceInExp rs $ fst a, replaceInExp rs $ snd a)
 
 replaceInLet :: [Replacement] -> Binding -> Binding
 replaceInLet rs b = (fst b, replaceInExp rs $ snd b)
+
+
+
 
 
 -- Tidy up the resulting program
