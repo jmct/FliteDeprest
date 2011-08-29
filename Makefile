@@ -6,7 +6,7 @@ fl: $(SOURCES)
 	ghc -O2 --make fl -XTypeSynonymInstances -XOverlappingInstances
 
 trace: fl
-	./fl -r examples/Lambda.hs 2>&1 | sed 's/\([fF]unc\)/\n\1/g' > trace.txt
+	./fl -r examples/HigherOrder.hs 2>&1 | sed 's/\([fF]unc\)/\n\1/g' > trace.txt
 
 examples/%.red : examples/%.hs
 	./fl -r $< > $@ || true

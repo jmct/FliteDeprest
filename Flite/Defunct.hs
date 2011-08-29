@@ -2,54 +2,11 @@ module Flite.Defunct where
 
 import Flite.Syntax
 import Flite.Traversals
-import Flite.Descend
+import Flite.Pretty
+-- import Flite.Descend
 
 import Debug.Trace
 import List
-
-
-
-defunctionalise :: Prog -> Prog
-defunctionalise p = p'
-    where
-        p' = p
-        findCandidates :: Exp -> [Exp]
-        findCandidates (App f args) 
-            | or (map isItAFunction args) = [App f args] ++ (map findCandidates args)
-        findCandidates e = descend findCandidates e
-
-        --defuncExp :: Exp -> Exp
-
-
-        isItAFunction :: Exp -> Bool
-        isItAFunction (Fun id) = if (arityOf p id) == 0 then False else True
-        isItAFunction (Con id) = True
-        isItAFunction _ = False
-
-
-        arityOf :: Id -> Int
-        arityOf id =
-            case ds of 
-                [] -> if isBinaryPrim id then 2
-                        else if isUnaryPrim id then 1
-                        else error ("Couldn't find a declaration for " ++ id)
-                [d] -> length $ funcArgs d
-                _ -> error ("Multiple declarations for " ++ id)
-            where
-                ds = findDecl p id
-
-
-        findDecl :: Id -> [Decl]
-        findDecl id = filter ( (==id) . funcName  ) p
-
-
-
-
-{-
-
-
-
-
 
 
 type Request = (Id, Exp)
@@ -60,7 +17,7 @@ defunctionalise :: Prog -> Prog
 defunctionalise p = trace ("\n\n::::: After :::::::\n" ++ show p' ++ "\n::::::::::::\n" ) p'
     where
         p' = findUsedDecls $ defunctionalise' $
-            trace ("::::: Before ::::::\n"   ++ show p) p
+            trace ("::::: Before ::::::\n"   ++ show p ++ "\n::::::::::::\n" ) p
 
 defunctionalise' :: Prog -> Prog
 defunctionalise' p = after
@@ -199,7 +156,7 @@ makeRequestedDecls p (r:rs) = makeRequestedDecls p' rs
         p' = (makeDeclFromRequest p r) ++ p
 
 
--- makeDeclFromRequest findDecl and specialiseDecl only return a single
+-- makeDeclFromRequest and specialiseDecl should only return a single
 -- Decl, but they do so in a list to gracefully handle the possiblity
 -- of a new Decl not being required.
 makeDeclFromRequest :: Prog -> Request -> [Decl]
@@ -211,10 +168,10 @@ makeDeclFromRequest pr (newName, ex@(App f args)) =
                 d = specialiseDecl pr specialiseMe args newName
         ds -> []  -- declaration for this function already exists
     where
-        existing = findDecl pr newName  
+        existing = lookupFuncs newName pr
         specialiseMe = case f of
-            ( Fun id ) -> findDecl pr id
-            ( Con id ) -> findDecl pr id
+            ( Fun id ) -> lookupFuncs id pr 
+            ( Con id ) -> lookupFuncs id pr 
             exp        -> error $ "Couldn't find a declaration for " ++ show exp
 makeDeclFromRequest pr (newName, e@(Fun id)) = [Func newName args rhs]
     where
@@ -233,16 +190,8 @@ arityOf p id =
         [d] -> length $ funcArgs d
         _ -> error ("Multiple declarations for " ++ id)
     where
-        ds = findDecl p id
+        ds = lookupFuncs id p
 
-
-
-findDecl :: Prog -> Id -> [Decl]
-findDecl pr id = 
-    -- trace ("Search: " ++ id ++ "\nFound: " ++ show found ) $
-    found
-    where
-        found = filter ( (==id) . funcName  ) pr
 
 -- specialiseDecl takes and returns lists of Decls to handle the 
 -- possibility of a new Decl not being needed (ie, we simply 
@@ -295,13 +244,13 @@ replaceInLet rs b = (fst b, replaceInExp rs $ snd b)
 -- Tidy up the resulting program
 
 findUsedDecls :: Prog -> Prog
-findUsedDecls p = findUsedDecls' p $ findDecl p "main"
+findUsedDecls p = findUsedDecls' p $ lookupFuncs "main" p
 
 
 findUsedDecls' :: Prog -> [Decl] -> Prog
 findUsedDecls' p acc =
     if length acc' == length acc 
-        then trace (show acc) acc'
+        then acc'
         else findUsedDecls' p acc'
     where
         acc' = filter ( \d -> (funcName d) `elem` ("main":usedFuncs) ) p
@@ -322,4 +271,4 @@ findFunsInExp (Fun id) = [id]
 -- findFunsInExp (Con id) = [id] -- top-level constructors get inlined with this commented. Good/bad? Not sure.
 findFunsInExp _ = []
 
--}
+
