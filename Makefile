@@ -16,5 +16,8 @@ examples : $(EXAMPLES)
 test : fl
 	for x in examples/*.hs; do echo -n $$x && ( ./fl -r $$x > /dev/null 2>&1 ) && echo "	success" || echo "	failure" ; done
 
+debug : clean
+	ghci -fbreak-on-error fl.hs
+
 clean :
 	rm -f Flite/*.{hi,o} Flite/Parsec/*.{hi,o} fl
