@@ -3,7 +3,9 @@ module Flite.Defunct where
 import Flite.Syntax
 import Flite.Traversals
 import Flite.Pretty
--- import Flite.Descend
+import Flite.ConcatApp
+import Flite.Descend
+import Flite.Fresh
 
 import Debug.Trace
 import List
@@ -13,10 +15,10 @@ type Request = (Id, Exp)
 
 type Replacement = (Exp, Exp) -- (from, to)
 
-defunctionalise :: Prog -> Prog
+defunctionalise :: Prog -> Fresh Prog
 defunctionalise p = trace ("\n\n::::: After :::::::\n" ++ show p' ++ "\n::::::::::::\n" ) p'
     where
-        p' = findUsedDecls $ defunctionalise' $
+        p' = concatApps $ findUsedDecls $ defunctionalise' $
             trace ("::::: Before ::::::\n"   ++ show p ++ "\n::::::::::::\n" ) p
 
 defunctionalise' :: Prog -> Prog
@@ -83,6 +85,7 @@ data AppClassification =
     OverApplied |
     HigherOrder |
     HigherOrderWithPartial |
+    HigherOrderWithPartialPrimitive |
     Unclassified
 
 classifyApplication :: Prog -> Exp -> AppClassification
@@ -94,8 +97,12 @@ classifyApplication p e@( App f args ) =
     where 
         classify id =
             if isPrimId id then
-                -- trace ("Primitive " ++ id)
-                Primitive
+                if isFunctionAppliedToPartial p e then
+                    -- trace ("PartialPrimitive " ++ id)
+                    HigherOrderWithPartialPrimitive
+                else
+                    -- trace ("Primitive " ++ id)
+                    Primitive
             else if arityOf p id == 0 then
                 -- trace ("Nullary " ++ id)
                 Nullary
@@ -122,6 +129,9 @@ defuncApp p f args =
     case classifyApplication p (App f' args') of
         HigherOrderWithPartial ->
             -- trace ("HOWP: " ++ show e) $
+            defuncAppWithPartiallyAppliedArg p f' args' rs'
+        HigherOrderWithPartialPrimitive -> 
+            -- trace ("HOWPP: " ++ show e) $
             defuncAppWithPartiallyAppliedArg p f' args' rs'
         HigherOrder -> 
             -- trace ("HO: " ++ show e) $
@@ -157,6 +167,10 @@ isFunctionAppliedToPartial p e@( App (Fun _) ((App (Fun id) aargs):_) ) =
     if length aargs < arityOf p id then True else False
 isFunctionAppliedToPartial p e@( App (Fun _) ((App (Con id) aargs):_) ) = 
     if length aargs < arityOf p id then True else False
+{-isFunctionAppliedToPartial p e@( App (Con _) ((App (Fun id) aargs):_) ) =
+    if length aargs < arityOf p id then True else False
+isFunctionAppliedToPartial p e@( App (Con _) ((App (Con id) aargs):_) ) = 
+    if length aargs < arityOf p id then True else False -}
 isFunctionAppliedToPartial p e =
     False
 
@@ -210,6 +224,8 @@ specialisedName p es = -- trace ("Requested name for " ++ show es) $
 getId :: Exp -> Id
 getId (Fun id) = id
 getId (Con id) = id
+getId (App (Fun id) args) = id
+getId (App (Con id) args) = id
 getId e = "" -- error $ "Tried to getId of a non-function: " ++ show e
 
 
@@ -230,13 +246,15 @@ makeDeclFromRequest pr (newName, ex@(App f args)) =
     -- trace (show ex) $
     case (existing, classifyApplication pr ex) of
         ([], HigherOrderWithPartial) ->
-            inlinePartialApplication pr specialiseMe args newName
+            specialisePartiallyAppliedArg pr ex newName
+        ([], HigherOrderWithPartialPrimitive) ->
+            specialisePartiallyAppliedArg pr ex newName
         ([], HigherOrder) -> 
             specialiseDecl pr specialiseMe args newName
         (_, _) -> []
     where
-        existing = lookupFuncs newName pr
-        specialiseMe = lookupFuncs (getId f) pr
+        existing = getDeclFor pr newName
+        specialiseMe = getDeclFor pr (getId f)
 makeDeclFromRequest pr (newName, e@(Fun id)) = [Func newName args rhs]
     where
         args = case arityOf pr id of 
@@ -255,7 +273,7 @@ arityOf p id =
         [d] -> length $ funcArgs d
         _ -> error ("Multiple declarations for " ++ id)
     where
-        ds = lookupFuncs id p
+        ds = getDeclFor p id
 
 
 -- specialiseDecl takes and returns lists of Decls to handle the 
@@ -274,15 +292,39 @@ specialiseDecl p [d@(Func id params rhs)] args newId =
         params' = extractSndWhereFstIsFalse $ zip whichArgsAreFunctional params 
 specialiseDecl p d as newId = error $ "Couldn't honour request for " ++ newId ++ "\n\n" ++ show (p, d, as)
 
-inlinePartialApplication :: Prog -> [Decl] -> [Exp] -> Id -> [Decl]
-                         -- p       to spec   aargs   newname 
-inlinePartialApplication p [d@(Func id (arg:args) rhs)] aargs newId =
+
+-- Remove the first arg from d, and prepend the first n args from the decl for head aargs
+specialisePartiallyAppliedArg :: Prog -> Exp -> Id -> [Decl]
+specialisePartiallyAppliedArg p app@(App f1 (arg@(App f2 args2):as)) newId = 
+    [Func newId params rhs]
+    where
+        d1 = head $ getDeclFor p (getId f1)
+        d2 = head $ getDeclFor p (getId f2)
+        params = (take (length args2) $ funcArgs d2) ++ (tail $ funcArgs d1)
+        replaceMe = (head $ funcArgs d1, arg')
+        arg' = App f2 (take (length args2) $ funcArgs d2)
+        rhs = replaceInExp [replaceMe] $ funcRhs d1
+
+{-
+
+specialisePartiallyAppliedArg :: Prog -> [Decl] -> [Exp] -> Id -> [Decl]
+specialisePartiallyAppliedArg p [d@(Func id (arg:args) rhs)] aargs newId =
     [Func newId args' rhs']
     where
-        args' = (tail aargs) ++ args
+        aparams = case head aargs of 
+            (App (Fun aid) aas) -> take (length aas) $ funcArgs $ head $ getDeclFor p aid
+            (App (Con aid) aas) -> take (length aas) $ funcArgs $ head $ getDeclFor p aid
+            _ -> error $ show d
+        args' = aparams ++ args
         replaceMe = (arg, head aargs)
         rhs' = replaceInExp [replaceMe] rhs 
 
+combineArgsFromDecls :: Prog -> Decl -> Decl -> Exp -> Id -> [Decl]
+combineArgsFromDecls p d1 d2 app newId =
+    [Func newId params' rhs']
+    where
+        
+-}
 
 extractSndWhereFstIsTrue :: [(Bool, b)] -> [b]
 extractSndWhereFstIsTrue = (map snd) . (filter fst)
@@ -316,13 +358,40 @@ replaceInLet :: [Replacement] -> Binding -> Binding
 replaceInLet rs b = (fst b, replaceInExp rs $ snd b)
 
 
+-- A wrapper around lookupFuncs that creates fake declarations for 
+--   primitives.
+getDeclFor :: Prog -> Id -> [Decl]
+getDeclFor p id 
+    | isBinaryPrim id || id == "Cons" =
+        [ Func id [Var "?a", Var "?b"] (App (Fun id) [Var "?a", Var "?b"]) ]
+    | isUnaryPrim id = 
+        [ Func id [Var "?a"] (App (Fun id) [Var "?a"]) ]
+    | otherwise   = lookupFuncs id p
 
+-- And this does the same for constructors, by finding a pattern
+--   match that uses them.
+fakeDeclForCon :: Prog -> Id -> [Decl]
+fakeDeclForCon p cid = fromExp findCon
+    where
+        findCon (Case ex alts)
+            | null defs = concatMap findCon [ex:alts]
+            | otherwise = case head defs of a@(App c args) -> makeFakeDecl a
+                where
+                    findCon e = descend findCon e
+                    defs = filter ((isAnAppOfCon cid) . fst) alts
+                    isAnAppOfCon cid (App (Con id) _) | cid == id = True
+                    isAnAppOfCon _ _ = False
+
+
+makeFakeDecl :: Exp -> [Decl]
+makeFakeDecl a@(App c@(Con id) args) = 
+    [Func id args (App c args)]
 
 
 -- Tidy up the resulting program
 
 findUsedDecls :: Prog -> Prog
-findUsedDecls p = findUsedDecls' p $ lookupFuncs "main" p
+findUsedDecls p = findUsedDecls' p $ getDeclFor p "main"
 
 
 findUsedDecls' :: Prog -> [Decl] -> Prog
@@ -346,7 +415,7 @@ findFunsInExp (Case e alts) =
 findFunsInExp (Let bs e) = concatMap findFunsInExp ( e:(snd $ unzip bs) )
 findFunsInExp (Lam is e) = findFunsInExp e
 findFunsInExp (Fun id) = [id]
--- findFunsInExp (Con id) = [id] -- top-level constructors get inlined with this commented. Good/bad? Not sure.
+-- findFunsInExp (Con id) = [id] 
 findFunsInExp _ = []
 
 

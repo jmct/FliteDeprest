@@ -8,5 +8,5 @@
 
     list = Cons 1 (Cons 2 (Cons 3 Nil));
 
-    main = map (add 1) list ;
+    main = map ((+) 1) list ;
 }
