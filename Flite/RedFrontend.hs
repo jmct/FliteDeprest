@@ -16,7 +16,7 @@ import Flite.WorkerWrapper
 import Control.Monad
 import Flite.Pretty
 import Flite.PRSAnalyse
-import Flite.Defunct
+import Flite.Defunct2
 
 import Debug.Trace
 

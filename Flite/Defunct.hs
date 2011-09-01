@@ -15,7 +15,7 @@ type Request = (Id, Exp)
 
 type Replacement = (Exp, Exp) -- (from, to)
 
-defunctionalise :: Prog -> Fresh Prog
+defunctionalise :: Prog -> Prog
 defunctionalise p = trace ("\n\n::::: After :::::::\n" ++ show p' ++ "\n::::::::::::\n" ) p'
     where
         p' = concatApps $ findUsedDecls $ defunctionalise' $
@@ -92,7 +92,7 @@ classifyApplication :: Prog -> Exp -> AppClassification
 classifyApplication p e@( App f args ) =
     case f of 
         Fun id -> classify id
-        -- Con id -> classify id
+        Con id -> classify id
         _ ->  Unclassified
     where 
         classify id =
@@ -198,11 +198,11 @@ isItAFunction p (Fun id) =
     isIt
     where
         isIt = if (arityOf p id) == 0 then False else True
-isItAFunction p (Con id) =
+isItAFunction p (Con id) = False
     -- trace (id ++ ": " ++ show isIt)
-    isIt
+{-    isIt
     where
-        isIt = if (arityOf p id) == 0 then False else True
+        isIt = if (arityOf p id) == 0 then False else True -}
 {-isItAFunction p (App (Fun id) args) =
     if (arityOf p id) > length args
         then True
@@ -213,8 +213,8 @@ specialisedName :: Prog -> [Exp] -> Id
 specialisedName p es = -- trace ("Requested name for " ++ show es) $
     foldr ( (++) . ('^':) ) "" $ map specGetId es
     where
-        specGetId (Fun id) = if arityOf p id == 0 then "" else id
-        specGetId (Con id) = if arityOf p id == 0 then "" else id
+        specGetId (Fun id) = if arityOf p id == 0 then "" else "0" ++ id
+        specGetId (Con id) = if arityOf p id == 0 then "" else "0" ++ id
         specGetId (App (Fun id) args) = show (length args) ++ id
         specGetId (App (Con id) args) = show (length args) ++ id
         specGetId _ = ""
@@ -266,15 +266,27 @@ makeDeclFromRequest pr e = error ("Non-application passed to function specialise
 arityOf :: Prog -> Id -> Int
 arityOf p id =
     case ds of  -- needs special cases for all built-in constructors
-        [] -> if isBinaryPrim id || id == "Cons" then 2
+        [] -> if isBinaryPrim id then 2
                 else if isUnaryPrim id then 1
-                else if id == "Nil" || id == "True" || id == "False" then 0
+                else if not $ null conArity then head conArity
                 else error ("Couldn't find a declaration for " ++ id ++ "\n\n...in..." ++ show p)
         [d] -> length $ funcArgs d
         _ -> error ("Multiple declarations for " ++ id)
     where
         ds = getDeclFor p id
+        conArity = getConstructorArity p id
 
+-- get information about constructors from patterns in case expressions.
+getConstructorArity :: Prog -> Id -> [Int]
+getConstructorArity p id =
+    case fromExp findConPat p of
+        (n:ns) -> [maximum (n:ns)]
+        [] -> []
+    where
+        findConPat :: Exp -> [Int]
+        findConPat (App (Con cid) args) | cid == id = [length args]
+        findConPat (Con cid) | cid == id = [0]
+        findConPat e = extract findConPat e
 
 -- specialiseDecl takes and returns lists of Decls to handle the 
 -- possibility of a new Decl not being needed (ie, we simply 
@@ -370,23 +382,19 @@ getDeclFor p id
 
 -- And this does the same for constructors, by finding a pattern
 --   match that uses them.
-fakeDeclForCon :: Prog -> Id -> [Decl]
-fakeDeclForCon p cid = fromExp findCon
+{- fakeDeclForCon :: Prog -> Id -> [Decl]
+fakeDeclForCon p cid = fromExp findCon p
     where
         findCon (Case ex alts)
-            | null defs = concatMap findCon [ex:alts]
-            | otherwise = case head defs of a@(App c args) -> makeFakeDecl a
+            | null defs = concatMap ( fakeDeclForCon [ex:alts]
+            | otherwise = case head defs of
+                a@(App c args) -> makeFakeDecl p a
                 where
                     findCon e = descend findCon e
                     defs = filter ((isAnAppOfCon cid) . fst) alts
                     isAnAppOfCon cid (App (Con id) _) | cid == id = True
                     isAnAppOfCon _ _ = False
-
-
-makeFakeDecl :: Exp -> [Decl]
-makeFakeDecl a@(App c@(Con id) args) = 
-    [Func id args (App c args)]
-
+-}
 
 -- Tidy up the resulting program
 
@@ -415,7 +423,7 @@ findFunsInExp (Case e alts) =
 findFunsInExp (Let bs e) = concatMap findFunsInExp ( e:(snd $ unzip bs) )
 findFunsInExp (Lam is e) = findFunsInExp e
 findFunsInExp (Fun id) = [id]
--- findFunsInExp (Con id) = [id] 
+findFunsInExp (Con id) = [id] 
 findFunsInExp _ = []
 
 
