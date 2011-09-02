@@ -8,5 +8,5 @@
 
     list = Cons 1 (Cons 2 (Cons 3 Nil));
 
-    main = map (map inc) ( Cons list (Cons list Nil) );
+    main = map (map Cons) ( Cons list (Cons list Nil) );
 }

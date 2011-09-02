@@ -84,7 +84,7 @@ lookupFuncs f p = [Func g args rhs | Func g args rhs <- p, f == g]
 
 lookupFunc :: Prog -> Id -> Decl
 lookupFunc p f
-  | null ds = error "Flite.Traversals: lookupFunc"
+  | null ds = error $ "Flite.Traversals: lookupFunc: " ++ show f
   | otherwise = head ds
   where ds = lookupFuncs f p
 

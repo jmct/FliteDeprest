@@ -31,21 +31,31 @@ defunctionalise p = trace (show p'') p''
 -- Transform higher-order function applications to first order.
 defuncExp :: Prog -> Exp -> (Exp, [Request])
 defuncExp p e@( App (Fun id1) ( (Fun id2):as ) )
-    | arityOf p id2 > 0 =
+    | functionExists p id2 && arityOf p id2 > 0 =
+        -- trace ("Submitted request: " ++ show rqs) $
+        (App (Fun id1') args', rqs)
+        where
+            id1' = id1 ++ "^" ++ id2
+            args' = as
+            rqs = [ (id1', e) ]
+defuncExp p e@( App (Fun id1) ( (Con id2):as ) ) 
+    | arityOfCon p id2 > 0 =
+        trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
             id1' = id1 ++ "^" ++ id2
             args' = as
             rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (App (Fun id2) args2):as ) )
-    | arityOf p id2 > length args2 =
+    | functionExists p id2 && arityOf p id2 > length args2 =
+        -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
             id1' = id1 ++ "^" ++ id2
             args' = args2 ++ as
             rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (App (Con id2) args2):as ) )
-    | arityOf p id2 > length args2 =
+    | arityOfCon p id2 > length args2 =
         (App (Fun id1') args', rqs)
         where
             id1' = id1 ++ "^" ++ id2
@@ -56,60 +66,71 @@ defuncExp p e = (e, [])
 
 
 theEndlessCycleOfDeathAndRebirth :: [Request] -> Prog -> Prog
-theEndlessCycleOfDeathAndRebirth rqs = reaper rqs ["main"]
+theEndlessCycleOfDeathAndRebirth rqs p =
+    reaper ["main"] $ p ++ (stork p rqs)
 
 
 
 -- Remove unwanted function definitions
-reaper :: [Request] -> [Id] -> Prog -> Prog
-reaper rqs ids p =
+reaper :: [Id] -> Prog -> Prog
+reaper ids p =
     -- trace (show ids) $
     if length ids == length ids'
         then ds
-        else reaper rqs ids' p
+        else reaper ids' p
     where
-        ds = map (lookupOrCreateFunc p rqs) $ filter (not . isPrimId) ids
+        ds = map (lookupFunc p) $ filter (not . isPrimId) ids
         ids' = nub $ ids ++ ( filter (not . isPrimId) $ (concat $ map (calls . funcRhs) ds) )
 
 
 
--- Look for an existing function definition, or else try to create one
---   from the list of requests.
-lookupOrCreateFunc :: Prog -> [Request] -> Id -> Decl
-lookupOrCreateFunc p rqs id = case lookupFuncs id p of
-        [] -> stork p rq
-            where 
-                rq = case find ( (id==) . fst ) rqs of
-                    Just r -> r
-                    Nothing -> error $ "Couldn't find a request for " ++ id
-        [d] -> d
-        _ -> error $ "Found multiple Decls for " ++ id
-
 
 -- Create a new Decl
-stork :: Prog -> Request -> Decl
-stork p (id, e) =
-    case e of
-        ( App (Fun id1) ( (Fun id2):as ) ) ->
-            Func id args rhs
-            where
-                (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1 
-                (Func _ args2 rhs2) = lookupFuncOrPrimitive p id2
-                args = tail args1
-                repls = [ (head args1, Fun id2),
-                          (App (Fun id1) args1, App (Fun id) args) ]
-                rhs = replaceAll repls rhs1
-        ( App (Fun id1) ( app@(App (Fun id2) as2):as1 ) ) ->
-            Func id args rhs
-            where
-                (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1
-                (Func _ args2 rhs2) = lookupFuncOrPrimitive p id2
-                args2' = take (length as2) args2
-                args = args2' ++ tail args1
-                repls = [ (head args1, App (Fun id2) args2'),
-                          (App (Fun id1) args1, App (Fun id) args) ]
-                rhs = replaceAll repls rhs1
-        _ -> error $ "Don't know how to satisfy request for " ++ show (id, e)
+stork :: Prog -> [Request] -> Prog
+stork p [] = p
+stork p ( (id, e):rqs) = stork p' rqs
+    where
+        p' = d:p
+        d = case e of
+            ( App (Fun id1) ( (Fun id2):as ) ) ->
+                Func id args rhs
+                where
+                    (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1 
+                    (Func _ args2 rhs2) = lookupFuncOrPrimitive p id2
+                    args = tail args1
+                    repls = [ (head args1, Fun id2),
+                              (App (Fun id1) args1, App (Fun id) args) ]
+                    rhs = replaceAll repls rhs1
+            ( App (Fun id1) ( (Con id2):as ) ) ->
+                Func id args rhs
+                where
+                    (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1 
+                    args2 = getArgsForCon $ arityOfCon p id2
+                    args = tail args1
+                    repls = [ (head args1, Con id2),
+                              (App (Fun id1) args1, App (Fun id) args) ]
+                    rhs = replaceAll repls rhs1
+            ( App (Fun id1) ( app@(App (Fun id2) as2):as1 ) ) ->
+                Func id args rhs
+                where
+                    (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1
+                    (Func _ args2 rhs2) = lookupFuncOrPrimitive p id2
+                    args2' = take (length as2) args2
+                    args = args2' ++ tail args1
+                    repls = [ (head args1, App (Fun id2) args2'),
+                              (App (Fun id1) args1, App (Fun id) args) ]
+                    rhs = replaceAll repls rhs1
+            ( App (Fun id1) ( app@(App (Con id2) as2):as1 ) ) ->
+                Func id args rhs
+                where
+                    (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1
+                    args2 = getArgsForCon $ arityOfCon p id1
+                    args2' = take (length as2) args2
+                    args = args2' ++ tail args1
+                    repls = [ (head args1, App (Fun id2) args2'),
+                              (App (Fun id1) args1, App (Fun id) args) ]
+                    rhs = replaceAll repls rhs1
+            _ -> error $ "Don't know how to satisfy request for " ++ show (id, e)
 
 
 
@@ -127,12 +148,16 @@ replace rs exp =
     where
         subs = filter ( (exp ==) . fst ) rs
 
+functionExists :: Prog -> Id -> Bool
+functionExists p id = isPrimId id || elem id [fid | Func fid _ _ <- p]
 
 lookupFuncOrPrimitive :: Prog -> Id -> Decl
 lookupFuncOrPrimitive p id 
     | isBinaryPrim id = Func id args2 (App (Fun id) args2)
     | isUnaryPrim id  = Func id args1 (App (Fun id) args1)
-    | otherwise = lookupFunc p id
+    | otherwise = case lookupFuncs id p of
+        [d] -> d
+        _ -> error $ "Couldn't find Decl for " ++ id ++ " in \n\n" ++ show p
     where
         args2 = [Var "?a", Var "?b"] 
         args1 = [Var "?c"]
@@ -143,6 +168,33 @@ arityOf p id = length args
     where
         Func _ args _ = lookupFuncOrPrimitive p id
     
+arityOfCon :: Prog -> Id -> Int
+arityOfCon p id = arity
+    where
+        arity = maximum $ fromExp conArities p
+        conArities :: Exp -> [Int]
+        conAriies (App (Con cid) args)
+            | id == cid = [length args] 
+        conArities (Con cid)
+            | id == cid = [0]
+        conArities e = extract conArities e
+
+
+getConstructorArity :: Prog -> Id -> [Int]
+getConstructorArity p id =
+    case fromExp findConPat p of
+        (n:ns) -> [maximum (n:ns)]
+        [] -> []
+    where
+        findConPat :: Exp -> [Int]
+        findConPat (App (Con cid) args) | cid == id = [length args]
+        findConPat (Con cid) | cid == id = [0]
+        findConPat e = extract findConPat e
+
+
+getArgsForCon :: Int -> [Exp]
+getArgsForCon 0 = []
+getArgsForCon n = (Var $ "?" ++ show (10000 + n)) : (getArgsForCon $ n-1)
 
 
 -- a bottom-up traversal of an expression, applying a transformation at
