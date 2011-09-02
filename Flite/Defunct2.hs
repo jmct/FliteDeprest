@@ -5,6 +5,7 @@ import Flite.Traversals
 import Flite.Descend
 import Flite.Syntax
 import Flite.Pretty
+import Flite.ConcatApp
 
 import List
 import Debug.Trace
@@ -12,6 +13,7 @@ import Debug.Trace
 
 
 type Request = (Id, Exp)
+type Replacement = (Exp, Exp) -- (from, to)
 
 
 
@@ -21,43 +23,126 @@ defunctionalise p = trace (show p'') p''
         (p', rqss) = unzip [(Func id args (fst $ traverse defunc rhs), snd $ traverse defunc rhs) | Func id args rhs <- p]
         p'' = case rqs of 
             [] -> p'
-            _  -> defunctionalise $ reap $ p' ++ satisfyRequests rqs
+            _  -> defunctionalise $ concatApps $ theEndlessCycleOfDeathAndRebirth rqs p'
         rqs = concat rqss
         defunc = defuncExp p
 
 
 -- Transform higher-order function applications to first order.
 defuncExp :: Prog -> Exp -> (Exp, [Request])
-defuncExp p e@( App (Fun id1) ( (Fun id2):as ) ) =
-    (App (Fun id1') args', rqs)
-    where
-        id1' = "^" ++ id1 ++ id2
-        args' = as
-        rqs = [ (id1', e) ]
-defuncExp p e@( App (Fun id1) ( (App (Fun id2) args2):as ) ) =
-    (App (Fun id1') args', rqs)
-    where
-        id1' = "^" ++ id1 ++ id2
-        args' = args2 ++ as
-        rqs = [ (id1', e) ]
+defuncExp p e@( App (Fun id1) ( (Fun id2):as ) )
+    | arityOf p id2 > 0 =
+        (App (Fun id1') args', rqs)
+        where
+            id1' = id1 ++ "^" ++ id2
+            args' = as
+            rqs = [ (id1', e) ]
+defuncExp p e@( App (Fun id1) ( (App (Fun id2) args2):as ) )
+    | arityOf p id2 > length args2 =
+        (App (Fun id1') args', rqs)
+        where
+            id1' = id1 ++ "^" ++ id2
+            args' = args2 ++ as
+            rqs = [ (id1', e) ]
+defuncExp p e@( App (Fun id1) ( (App (Con id2) args2):as ) )
+    | arityOf p id2 > length args2 =
+        (App (Fun id1') args', rqs)
+        where
+            id1' = id1 ++ "^" ++ id2
+            args' = args2 ++ as
+            rqs = [ (id1', e) ]
 defuncExp p e = (e, [])
 
 
--- Create new Decls
-satisfyRequest :: Request -> Decl
+
+theEndlessCycleOfDeathAndRebirth :: [Request] -> Prog -> Prog
+theEndlessCycleOfDeathAndRebirth rqs = reaper rqs ["main"]
 
 
 
 -- Remove unwanted function definitions
-reap :: Prog -> Prog
-reap p = reap' ["main"] p
-
-reap' :: Prog -> [Id] -> Prog
-reap' p ids = if length ids == ids' then ds else reap' p ids'
+reaper :: [Request] -> [Id] -> Prog -> Prog
+reaper rqs ids p =
+    -- trace (show ids) $
+    if length ids == length ids'
+        then ds
+        else reaper rqs ids' p
     where
-        ds = map (lookupFunc p) p
-        ids' = nub . concat $ map (nub . calls . funcRhs) ds
+        ds = map (lookupOrCreateFunc p rqs) $ filter (not . isPrimId) ids
+        ids' = nub $ ids ++ ( filter (not . isPrimId) $ (concat $ map (calls . funcRhs) ds) )
 
+
+
+-- Look for an existing function definition, or else try to create one
+--   from the list of requests.
+lookupOrCreateFunc :: Prog -> [Request] -> Id -> Decl
+lookupOrCreateFunc p rqs id = case lookupFuncs id p of
+        [] -> stork p rq
+            where 
+                rq = case find ( (id==) . fst ) rqs of
+                    Just r -> r
+                    Nothing -> error $ "Couldn't find a request for " ++ id
+        [d] -> d
+        _ -> error $ "Found multiple Decls for " ++ id
+
+
+-- Create a new Decl
+stork :: Prog -> Request -> Decl
+stork p (id, e) =
+    case e of
+        ( App (Fun id1) ( (Fun id2):as ) ) ->
+            Func id args rhs
+            where
+                (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1 
+                (Func _ args2 rhs2) = lookupFuncOrPrimitive p id2
+                args = tail args1
+                repls = [ (head args1, Fun id2),
+                          (App (Fun id1) args1, App (Fun id) args) ]
+                rhs = replaceAll repls rhs1
+        ( App (Fun id1) ( app@(App (Fun id2) as2):as1 ) ) ->
+            Func id args rhs
+            where
+                (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1
+                (Func _ args2 rhs2) = lookupFuncOrPrimitive p id2
+                args2' = take (length as2) args2
+                args = args2' ++ tail args1
+                repls = [ (head args1, App (Fun id2) args2'),
+                          (App (Fun id1) args1, App (Fun id) args) ]
+                rhs = replaceAll repls rhs1
+        _ -> error $ "Don't know how to satisfy request for " ++ show (id, e)
+
+
+
+-- Some utility functions...
+
+replaceAll :: [Replacement] -> Exp -> Exp
+replaceAll rs = fst . traverse (replace rs)
+
+replace :: [Replacement] -> Exp -> ( Exp, [a] )
+replace rs exp =
+    case subs of 
+        [] -> (exp, [])
+        [(_, to)] -> (to, [])
+        _ -> error $ "Found multiple possible replacements for " ++ show exp ++ ". Not sure what to do!"
+    where
+        subs = filter ( (exp ==) . fst ) rs
+
+
+lookupFuncOrPrimitive :: Prog -> Id -> Decl
+lookupFuncOrPrimitive p id 
+    | isBinaryPrim id = Func id args2 (App (Fun id) args2)
+    | isUnaryPrim id  = Func id args1 (App (Fun id) args1)
+    | otherwise = lookupFunc p id
+    where
+        args2 = [Var "?a", Var "?b"] 
+        args1 = [Var "?c"]
+
+
+arityOf :: Prog -> Id -> Int
+arityOf p id = length args
+    where
+        Func _ args _ = lookupFuncOrPrimitive p id
+    
 
 
 -- a bottom-up traversal of an expression, applying a transformation at
