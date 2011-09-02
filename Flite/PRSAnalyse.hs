@@ -49,6 +49,7 @@ algExpA (a, ALet (v,e1) e2) = if isAlg e2' then mkAlg e' else e'
                               e2' = algExpA e2
                               v'  = if isAlg e1' then mkAlg v else liftAlg e2' v
                               e'  = (a, ALet (v',e1') e2')
+algExpA blah = error $ "Don't know how to handle " ++ show blah
 
 algAltA ((a,AApp c vs), e)  = (mkAlg (a,AApp c vs'), e')
                               where

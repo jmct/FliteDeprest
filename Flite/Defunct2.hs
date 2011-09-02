@@ -171,7 +171,7 @@ arityOf p id = length args
 arityOfCon :: Prog -> Id -> Int
 arityOfCon p id = arity
     where
-        arity = maximum $ fromExp conArities p
+        arity = maximum $ fromExp conArities y
         conArities :: Exp -> [Int]
         conAriies (App (Con cid) args)
             | id == cid = [length args] 
