@@ -11,19 +11,24 @@ import List
 import Debug.Trace
 
 
-
 type Request = (Id, Exp)
 type Replacement = (Exp, Exp) -- (from, to)
 
 
 
 defunctionalise :: Prog -> Prog
-defunctionalise p = trace (show p'') p''
+defunctionalise p = trace (show p') p'
+    where
+        p' = defunctionalise' p
+
+
+defunctionalise' :: Prog -> Prog
+defunctionalise' p = p''
     where
         (p', rqss) = unzip [(Func id args (fst $ traverse defunc rhs), snd $ traverse defunc rhs) | Func id args rhs <- p]
         p'' = case rqs of 
             [] -> p'
-            _  -> defunctionalise $ concatApps $ theEndlessCycleOfDeathAndRebirth rqs p'
+            _  -> defunctionalise' $ theEndlessCycleOfDeathAndRebirth rqs $ concatApps p'
         rqs = concat rqss
         defunc = defuncExp p
 
@@ -31,16 +36,25 @@ defunctionalise p = trace (show p'') p''
 -- Transform higher-order function applications to first order.
 defuncExp :: Prog -> Exp -> (Exp, [Request])
 defuncExp p e@( App (Fun id1) ( (Fun id2):as ) )
-    | functionExists p id2 && arityOf p id2 > 0 =
-        -- trace ("Submitted request: " ++ show rqs) $
-        (App (Fun id1') args', rqs)
-        where
-            id1' = id1 ++ "^" ++ id2
-            args' = as
-            rqs = [ (id1', e) ]
+    | functionExists p id2 = let Func _ _ rhs2 = lookupFunc p id2 in
+        case arityOf p id2 == 0 && (not $ (id2 `elem`) $ calls rhs2 ) of
+            True ->
+                -- trace ("Inlining " ++ id2) $
+                -- inline nullary 'functions' as long as they aren't
+                --   recursively defined.
+                (App (Fun id1) args', [])
+                where
+                    args' = rhs2:as
+            False ->
+                -- trace ("Submitted request: " ++ show rqs) $
+                (App (Fun id1') args', rqs)
+                where
+                    id1' = id1 ++ "^" ++ id2
+                    args' = as
+                    rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (Con id2):as ) ) 
     | arityOfCon p id2 > 0 =
-        trace ("Submitted request: " ++ show rqs) $
+        -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
             id1' = id1 ++ "^" ++ id2
@@ -56,6 +70,7 @@ defuncExp p e@( App (Fun id1) ( (App (Fun id2) args2):as ) )
             rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (App (Con id2) args2):as ) )
     | arityOfCon p id2 > length args2 =
+        -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
             id1' = id1 ++ "^" ++ id2
@@ -67,7 +82,7 @@ defuncExp p e = (e, [])
 
 theEndlessCycleOfDeathAndRebirth :: [Request] -> Prog -> Prog
 theEndlessCycleOfDeathAndRebirth rqs p =
-    reaper ["main"] $ p ++ (stork p rqs)
+    reaper ["main"] $ stork p rqs
 
 
 
@@ -88,8 +103,9 @@ reaper ids p =
 -- Create a new Decl
 stork :: Prog -> [Request] -> Prog
 stork p [] = p
-stork p ( (id, e):rqs) = stork p' rqs
-    where
+stork p ( (id, e):rqs) 
+    | functionExists p id = stork p rqs
+    | otherwise = stork p' rqs where
         p' = d:p
         d = case e of
             ( App (Fun id1) ( (Fun id2):as ) ) ->
@@ -105,7 +121,7 @@ stork p ( (id, e):rqs) = stork p' rqs
                 Func id args rhs
                 where
                     (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1 
-                    args2 = getArgsForCon $ arityOfCon p id2
+                    args2 = getUniqueVars p $ arityOfCon p id2
                     args = tail args1
                     repls = [ (head args1, Con id2),
                               (App (Fun id1) args1, App (Fun id) args) ]
@@ -124,10 +140,10 @@ stork p ( (id, e):rqs) = stork p' rqs
                 Func id args rhs
                 where
                     (Func _ args1 rhs1) = lookupFuncOrPrimitive p id1
-                    args2 = getArgsForCon $ arityOfCon p id1
+                    args2 = getUniqueVars p $ arityOfCon p id2
                     args2' = take (length as2) args2
                     args = args2' ++ tail args1
-                    repls = [ (head args1, App (Fun id2) args2'),
+                    repls = [ (head args1, App (Con id2) args2'),
                               (App (Fun id1) args1, App (Fun id) args) ]
                     rhs = replaceAll repls rhs1
             _ -> error $ "Don't know how to satisfy request for " ++ show (id, e)
@@ -159,8 +175,8 @@ lookupFuncOrPrimitive p id
         [d] -> d
         _ -> error $ "Couldn't find Decl for " ++ id ++ " in \n\n" ++ show p
     where
-        args2 = [Var "?a", Var "?b"] 
-        args1 = [Var "?c"]
+        args2 = getUniqueVars p 2
+        args1 = getUniqueVars p 2
 
 
 arityOf :: Prog -> Id -> Int
@@ -169,32 +185,24 @@ arityOf p id = length args
         Func _ args _ = lookupFuncOrPrimitive p id
     
 arityOfCon :: Prog -> Id -> Int
-arityOfCon p id = arity
+arityOfCon p id = head $ concat $ arities
     where
-        arity = maximum $ fromExp conArities y
-        conArities :: Exp -> [Int]
-        conAriies (App (Con cid) args)
-            | id == cid = [length args] 
-        conArities (Con cid)
-            | id == cid = [0]
-        conArities e = extract conArities e
+        arities = fromExp getCon p
+        getCon e = map (concatMap getArity) (caseAlts e)
+        getArity (App (Con cid) ps, e) | cid == id = [length ps]
+        getArity (p, e) = []
 
 
-getConstructorArity :: Prog -> Id -> [Int]
-getConstructorArity p id =
-    case fromExp findConPat p of
-        (n:ns) -> [maximum (n:ns)]
-        [] -> []
+
+-- Generate a list of Args with ids that aren't already found in Prog
+getUniqueVars :: Prog -> Int -> [Exp]
+getUniqueVars _ 0 = []
+getUniqueVars p n = take n $ newIds
     where
-        findConPat :: Exp -> [Int]
-        findConPat (App (Con cid) args) | cid == id = [length args]
-        findConPat (Con cid) | cid == id = [0]
-        findConPat e = extract findConPat e
-
-
-getArgsForCon :: Int -> [Exp]
-getArgsForCon 0 = []
-getArgsForCon n = (Var $ "?" ++ show (10000 + n)) : (getArgsForCon $ n-1)
+        newIds = filter (not . (`elem` exIds)) [ Var ('?':(show i)) | i <- [1..] ]
+        exIds = fromExp getVarIds p
+        getVarIds (Var id) = [Var id]
+        getVarIds _ = []
 
 
 -- a bottom-up traversal of an expression, applying a transformation at
