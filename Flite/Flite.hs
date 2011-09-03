@@ -62,7 +62,8 @@ run flags fileName =
      case filter isDisjoint flags of
        [] -> interp inlineFlag p `seq` return ()
        [Desugar] ->
-         putStrLn $ pretty $ desugar inlineFlag p
+         -- putStrLn $ pretty $ desugar inlineFlag p
+         putStrLn $ prettyProg $ desugar inlineFlag p
        [CompileToC] -> putStrLn $ compile inlineFlag p
        [CompileToRed slen alen napps nluts nregs] ->
         do let sa = StrictnessAnalysis `elem` flags

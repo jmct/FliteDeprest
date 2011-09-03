@@ -4,7 +4,7 @@ type Prog = [Decl]
 
 data Decl = Func { funcName :: Id
                  , funcArgs :: [Pat]
-                 , funcRhs  :: Exp }
+                 , funcRhs  :: Exp } deriving Show
 
 type Id = String
 
@@ -27,7 +27,7 @@ data Exp = App Exp [Exp]
          | PRSApp Id [Exp]   -- guaranteed PRS evaluable (static analysis)
          | PrimApp Id [Exp]  -- candidate for PRS (dynamic testing)
          | Prim Id
-  deriving Eq
+  deriving (Eq, Show)
 
 type Pat = Exp
 

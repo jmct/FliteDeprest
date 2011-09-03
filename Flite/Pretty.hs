@@ -13,7 +13,7 @@ module Flite.Pretty where
 							<+> hsep (map prettyArg a)
 							</> char '='
 							<+> pretty r
-		pretty (Other str)  = text str
+		-- pretty (Other str)  = text str
 							
 	instance Pretty Exp where
 		pretty (App x ys) 	= hsep (prettyArg2 x : map prettyArg ys)
