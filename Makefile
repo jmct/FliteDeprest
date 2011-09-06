@@ -8,13 +8,16 @@ fl: $(SOURCES)
 trace: fl
 	./fl -r examples/HigherOrder.hs 2>&1 | sed 's/\([fF]unc\)/\n\1/g' > trace.txt
 
+examples2/%.red : examples/%.hs
+	./fl -r $< > $@ || true
+
 examples/%.red : examples/%.hs
 	./fl -r $< > $@ || true
 
 examples : $(EXAMPLES)
 
 test : fl
-	for x in examples/*.hs; do echo -n $$x && ( ./fl -r $$x > /dev/null 2>&1 ) && echo "	success" || echo "	failure" ; done
+	for x in examples2/*.hs; do echo -n $$x && ( ./fl -r $$x > /dev/null 2>&1 ) && echo "	success" || echo "	failure" ; done
 
 debug : clean
 	ghci -fbreak-on-error fl.hs

@@ -17,7 +17,7 @@ type Replacement = (Exp, Exp) -- (from, to)
 
 
 defunctionalise :: Prog -> Prog
-defunctionalise p = trace (show p') p'
+defunctionalise p = trace (prettyProg p') p' -- trace (show p') p'
     where
         p' = defunctionalise' p
 
@@ -35,23 +35,23 @@ defunctionalise' p = p''
 
 -- Transform higher-order function applications to first order.
 defuncExp :: Prog -> Exp -> (Exp, [Request])
+defuncExp p e@( Fun id )
+    | functionExists p id && arityOf p id == 0 
+        && (not $ (id `elem`) $ calls rhs ) =
+            -- inline nullary 'functions' as long as they aren't
+            --   recursively defined.
+            -- trace ("Inlining " ++ id2) $
+            (rhs, [])
+            where
+                Func _ _ rhs = lookupFunc p id
 defuncExp p e@( App (Fun id1) ( (Fun id2):as ) )
-    | functionExists p id2 = let Func _ _ rhs2 = lookupFunc p id2 in
-        case arityOf p id2 == 0 && (not $ (id2 `elem`) $ calls rhs2 ) of
-            True ->
-                -- trace ("Inlining " ++ id2) $
-                -- inline nullary 'functions' as long as they aren't
-                --   recursively defined.
-                (App (Fun id1) args', [])
-                where
-                    args' = rhs2:as
-            False ->
-                -- trace ("Submitted request: " ++ show rqs) $
-                (App (Fun id1') args', rqs)
-                where
-                    id1' = id1 ++ "^" ++ id2
-                    args' = as
-                    rqs = [ (id1', e) ]
+    | functionExists p id2 && arityOf p id2 > 0 =
+        -- trace ("Submitted request: " ++ show rqs) $
+        (App (Fun id1') args', rqs)
+        where
+            id1' = id1 ++ "^" ++ id2
+            args' = as
+            rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (Con id2):as ) ) 
     | arityOfCon p id2 > 0 =
         -- trace ("Submitted request: " ++ show rqs) $
