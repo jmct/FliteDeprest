@@ -17,6 +17,7 @@ import Control.Monad
 import Flite.Pretty
 import Flite.PRSAnalyse
 import Flite.Defunct2
+import Flite.PrimFold
 
 import Debug.Trace
 
@@ -37,6 +38,7 @@ frontendM strictAnan nregs i p =
              >>= inlineTop i
              >>= return . concApps nregs
 
+             >>= return . primFold
              >>= return . defunctionalise
              >>= return . prsAnalyse . liftMain
 
