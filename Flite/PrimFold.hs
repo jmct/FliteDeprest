@@ -5,10 +5,13 @@ import Flite.Defunct2
 import Flite.LambdaLift
 import Flite.Traversals
 import Flite.Descend
+import Flite.Pretty
 
+import Debug.Trace
 
 primFold :: Prog -> Prog
-primFold p = lambdaLift '^' $ onExp (transformNestedPrimToLambda p) p
+primFold p = trace (prettyProg p') p'
+    where p' = lambdaLift '^' $ onExp (transformNestedPrimToLambda p) p
 
 
 transformNestedPrimToLambda :: Prog -> Exp -> Exp
