@@ -44,6 +44,7 @@ expr = pure App <*> expr' <*> many expr'
 
 expr' :: Parser Exp
 expr' = pure Case <*> (key "case" |> expr) <*> (key "of" |> block alt)
+    <|> pure Lam  <*> (tok "\\" |> many lowerIdent) <*> (tok "->" |> expr)
     <|> pure Let  <*> (key "let" |> block bind) <*> (key "in" |> expr)
     <|> pure Var  <*> lowerIdent
     <|> pure Con  <*> upperIdent
