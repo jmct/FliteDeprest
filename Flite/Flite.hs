@@ -17,6 +17,7 @@ import System.Console.GetOpt
 data Flag =
     Desugar
   | CompileToC
+  | Defunctionalise
   | CompileToRed Int Int Int Int Int
   | Inline (Maybe Int)
   | StrictnessAnalysis
@@ -30,6 +31,7 @@ options :: [OptDescr Flag]
 options =
   [ Option ['d'] [] (NoArg Desugar) "desugar"
   , Option ['c'] [] (NoArg CompileToC) "compile to C"
+  , Option ['f'] [] (NoArg Defunctionalise) "make first-order"
   , Option ['r'] [] (OptArg red "MAXPUSH:APSIZE:MAXAPS:MAXLUTS:MAXREGS")
                     "compile to Reduceron templates"
   , Option ['i'] [] (OptArg (Inline . fmap read) "MAXAPS")
@@ -65,6 +67,7 @@ run flags fileName =
          -- putStrLn $ pretty $ desugar inlineFlag p
          putStrLn $ prettyProg $ desugar inlineFlag p
        [CompileToC] -> putStrLn $ compile inlineFlag p
+       [Defunctionalise] -> putStrLn $ prettyProg p
        [CompileToRed slen alen napps nluts nregs] ->
         do let sa = StrictnessAnalysis `elem` flags
            mapM_ print $ redCompile inlineFlag sa slen alen napps nluts nregs p

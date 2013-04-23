@@ -55,8 +55,8 @@ module Flite.Pretty where
 	showPretty :: Pretty a => a -> String
 	showPretty = (++ "\n") . show  . indent 2 . pretty
 	
-	-- instance Show Decl where
-	--	show = ('\n':) . show  . pretty
+	instance Show Decl where
+		show = ('\n':) . show  . pretty
 		
-	-- instance Show Exp where
-	--	show = ('\n':) . show . pretty
+	instance Show Exp where
+		show = ('\n':) . show . pretty
