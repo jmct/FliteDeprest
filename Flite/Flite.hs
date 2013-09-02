@@ -9,6 +9,8 @@ import Flite.Interp
 import Flite.Inline
 import Flite.Compile
 import Flite.RedCompile
+import Flite.TypeChecker2
+import qualified Flite.RedFrontend
 import Data.List
 import System
 import System.IO
@@ -21,6 +23,8 @@ data Flag =
   | CompileToRed Int Int Int Int Int
   | Inline (Maybe Int)
   | StrictnessAnalysis
+  | TypeCheck
+  | CompileType
   deriving Eq
 
 isDisjoint (Inline i) = False
@@ -37,6 +41,8 @@ options =
   , Option ['i'] [] (OptArg (Inline . fmap read) "MAXAPS")
                     "inline small function bodies"
   , Option ['s'] [] (NoArg StrictnessAnalysis) "employ strictness analysis"
+  , Option ['t'] [] (NoArg TypeCheck) "type-checking"
+  , Option ['R'] [] (NoArg CompileType) "compile to Reduceron + type-info"
   ]
   where
     redDefaults = CompileToRed 6 4 2 1 0
@@ -71,6 +77,12 @@ run flags fileName =
        [CompileToRed slen alen napps nluts nregs] ->
         do let sa = StrictnessAnalysis `elem` flags
            mapM_ print $ redCompile inlineFlag sa slen alen napps nluts nregs p
+       [TypeCheck]     -> print $ tcheck p --putStrLn $ showfuntypes $ tcheck p
+       [CompileType]   -> do 
+                            --tc <- putStrLn $ showfuntypes $ tcheck p
+                            --cr <- mapM_ print $ redCompile p  
+                            tc <-print (tcheck p,redCompile p)
+                            return ()
        _ -> error (usageInfo header options)
 
 -- Auxiliary

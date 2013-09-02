@@ -10,7 +10,7 @@ keywords :: [String]
 keywords =
   [ "case", "of", "let"
   , "in", "emit", "emitInt"
-  , "if", "then", "else"
+  , "if", "then", "else", "data"
   ]
 
 identifier :: Parser Char -> Parser String
@@ -36,8 +36,26 @@ block p = tok "{" |> seq <| tok "}"
   where seq = seq' <| (tok ";" <|> pure "")
         seq' = pure (:) <*> p <*> many (tok ";" |> p)
 
+--added to parse data types
+blockdata :: Parser a -> Parser [a]
+blockdata p = seq' 
+  where --seq = seq' <| (tok "|" <|> pure "")
+        seq' = pure (:) <*> p <*> many (tok "|" |> p)
+
 defn :: Parser Decl
-defn = pure Func <*> lowerIdent <*> many pat <*> tok "=" |> expr
+defn = pure Func <*> lowerIdent <*> many pat <*> tok "=" |> expr 
+       <|> pure Data <*> (key "data" |> upperIdent) <*> many lowerIdent <*> (tok "="  |> blockdata texpr0)
+
+-- > -- added to parse data types
+texpr0 = pure (,) <*> upperIdent <*>  many texpr1
+        
+texpr1 = pure TEVar <*> lowerIdent 
+        <|> pure TECon <*> upperIdent 
+        <|> tok "(" |> texpr2 <| tok ")" 
+        
+texpr2 =  pure TEVar <*> lowerIdent 
+        <|> pure TECons <*> upperIdent  <*> many texpr1  
+-- < -- added to parse data types
 
 expr :: Parser Exp
 expr = pure App <*> expr' <*> many expr'

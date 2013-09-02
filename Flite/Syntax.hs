@@ -4,6 +4,9 @@ type Prog = [Decl]
 
 data Decl = Func { funcName :: Id
                  , funcArgs :: [Pat]
+                 , funcRhs  :: Exp }
+            | Data { dataName :: Id
+                   , dataArgs :: [Id]
                  , funcRhs  :: Exp } -- deriving Show
 
 type Id = String
@@ -36,6 +39,18 @@ type Alt = (Pat, Exp)
 type Binding = (Id, Exp)
 
 type App = [Exp]
+
+-- Type Info
+type Tvname = [Int]
+data Type_exp = TVAR Tvname
+              | TCONS [Char] [Type_exp]
+              deriving (Eq, Show)
+
+data TypeExp =   TEVar String
+                |TECons String [TypeExp]
+                |TECon  String
+              deriving (Eq,Show)
+
 
 -- Primitive functions
 
