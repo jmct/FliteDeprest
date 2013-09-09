@@ -12,7 +12,7 @@ import Flite.RedCompile
 import Flite.TypeChecker2
 import qualified Flite.RedFrontend
 import Data.List
-import System
+import System.Environment
 import System.IO
 import System.Console.GetOpt
 

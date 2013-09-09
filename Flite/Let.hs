@@ -12,7 +12,7 @@ import Flite.Traversals
 import Flite.Descend
 import Flite.Fresh
 import Flite.Dependency
-import List
+import Data.List
 
 mkLet :: [Binding] -> Exp -> Exp
 mkLet [] e = e

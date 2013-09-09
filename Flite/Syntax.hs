@@ -7,7 +7,7 @@ data Decl = Func { funcName :: Id
                  , funcRhs  :: Exp }
             | Data { dataName :: Id
                    , dataArgs :: [Id]
-                 , funcRhs  :: Exp } -- deriving Show
+                   , dataCons :: [(Id,[TypeExp])]} deriving Show 
 
 type Id = String
 
@@ -30,7 +30,7 @@ data Exp = App Exp [Exp]
          | PRSApp Id [Exp]   -- guaranteed PRS evaluable (static analysis)
          | PrimApp Id [Exp]  -- candidate for PRS (dynamic testing)
          | Prim Id
-  deriving Eq -- deriving (Eq, Show)
+  deriving (Eq,Show)
 
 type Pat = Exp
 
@@ -44,7 +44,7 @@ type App = [Exp]
 type Tvname = [Int]
 data Type_exp = TVAR Tvname
               | TCONS [Char] [Type_exp]
-              deriving (Eq, Show)
+              deriving (Eq)
 
 data TypeExp =   TEVar String
                 |TECons String [TypeExp]

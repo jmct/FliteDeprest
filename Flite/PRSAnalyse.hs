@@ -9,7 +9,7 @@ import Flite.AnnSyntax
 import Flite.ParseLib
 import Flite.Parse
 import Flite.Pretty
-import System
+--import System
 import System.IO
 import System.IO.Unsafe
 import System.Console.GetOpt

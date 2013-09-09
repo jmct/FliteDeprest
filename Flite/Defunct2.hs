@@ -7,7 +7,7 @@ import Flite.Syntax
 import Flite.Pretty
 import Flite.ConcatApp
 
-import List
+import Data.List
 import Debug.Trace
 
 
