@@ -8,7 +8,7 @@ import Flite.Pretty
 import Flite.Interp
 import Flite.Inline
 import Flite.Compile
-import Flite.RedCompile
+--import Flite.RedCompile
 import Flite.TypeChecker2
 import qualified Flite.RedFrontend
 import Data.List
@@ -74,14 +74,14 @@ run flags fileName =
          putStrLn $ prettyProg $ desugar inlineFlag p
        [CompileToC] -> putStrLn $ compile inlineFlag p
        [Defunctionalise] -> putStrLn $ prettyProg p
-       [CompileToRed slen alen napps nluts nregs] ->
+{-       [CompileToRed slen alen napps nluts nregs] ->
         do let sa = StrictnessAnalysis `elem` flags
-           mapM_ print $ redCompile inlineFlag sa slen alen napps nluts nregs p
+           mapM_ print $ redCompile inlineFlag sa slen alen napps nluts nregs p -}
        [TypeCheck]     -> print $ tcheck p --putStrLn $ showfuntypes $ tcheck p
        [CompileType]   -> do 
                             --tc <- putStrLn $ showfuntypes $ tcheck p
                             --cr <- mapM_ print $ redCompile p  
-                            tc <-print (tcheck p,redCompile p)
+                            tc <-print (tcheck p)
                             return ()
        _ -> error (usageInfo header options)
 
