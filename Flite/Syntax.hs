@@ -7,7 +7,7 @@ data Decl = Func { funcName :: Id
                  , funcRhs  :: Exp }
             | Data { dataName :: Id
                    , dataArgs :: [Id]
-                   , dataCons :: [(Id,[TypeExp])]} deriving Show 
+                   , dataCons :: [(Id,[TypeExp])]} deriving (Eq, Show)
 
 type Id = String
 
