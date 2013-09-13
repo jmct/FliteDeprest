@@ -4,6 +4,10 @@ import Flite.ParseLib
 import Flite.Syntax
 import Data.Char
 
+parseProgFile file =
+  do contents <- readFile file
+     return (parseProg contents)
+
 parseProg = parse prog
 
 keywords :: [String]
