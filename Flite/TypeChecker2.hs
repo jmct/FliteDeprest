@@ -411,7 +411,7 @@ getbinds ls =  zip (map funcName ls) (map funcRhs ls)
 init_env :: [Decl] -> [(Id, Type_scheme)]
 init_env ls = ienv ls env_initial [length (env_initial) + 10] 
 
---tcheck :: Prog -> [Type_exp]
+tcheck :: Prog -> ([(Id, Type_exp)], Prog)
 tcheck  progr =  (map funtype $ env \\ (init_env decls),decls)
  where  prog  =  introduceLam.introduceBApp.desugarProg.Prelude.supplyPrelude.fst.partitionDec $ progr
         decls =  snd.partitionDec $ progr
