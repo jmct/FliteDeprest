@@ -13,6 +13,13 @@ import Flite.Pretty
 import Flite.Inline
 import Flite.Descend
 
+(!) :: (Eq a, Show a) => [(a, b)] -> a -> b
+m ! k =
+  case lookup k m of
+    Nothing -> error ("Key " ++ show k ++ " not in environment")
+    Just v  -> v
+
+
 flic :: Prog -> String
 flic p = snd (runFresh (flicM p) "v_" 0)
 

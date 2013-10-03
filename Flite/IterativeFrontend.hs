@@ -14,12 +14,17 @@ import Flite.Flic
 --TODO Right now we are only defunctionalising, 
 --we need to incorporate type info as well.
 convertToCore :: Prog -> Prog
-convertToCore = defunc
+convertToCore = spjCtrNotation
 
 defunc :: Prog -> Prog
-defunc p = defunctionalise . snd $ runFresh (passes p) "d" 0
+defunc p = defunctionalise . snd $ runFresh (passes p) "v_" 0
   where 
-    passes prog = desugarCase (identifyFuncs prog) >>= desugarEqn
+    passes prog = desugarEqn (identifyFuncs prog)
+        >>= desugarCase
+        >>= onExpM freshen
+        >>= inlineLinearLet
+        >>= inlineSimpleLet
+        >>= return . joinApps
 
 --Right now we do not keep the list of Datatype declarations.
 --This may need to change depending on how we use the type information

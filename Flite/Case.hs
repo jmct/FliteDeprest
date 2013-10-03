@@ -1,4 +1,7 @@
-module Flite.Case (caseElim, caseElimWithCaseStack) where
+module Flite.Case (caseElim
+                  ,caseElimWithCaseStack
+                  ,ctrFamilies
+                  ) where
 
 import Flite.Syntax
 import Flite.Traversals
@@ -49,11 +52,19 @@ families p
     fam e = List.map (concatMap getCtr) (caseAlts e)
 
     getCtr (App (Con c) ps, e) = [(c, length ps)]
+    getCtr (Con c, e) = [(c, 0)]
     getCtr (p, e) = []
 
 familyTable :: [Family] -> Map Id Family
 familyTable fams =
   Map.fromList [(id, fam) | fam <- fams, (id, arity) <- Set.toList fam]
+
+ctrFamilies :: Prog -> [[Id]]
+ctrFamilies p =
+  [List.map fst (Set.toList s) | s <- families p]
+
+completeCase :: Prog -> Prog
+completeCase p = expandCase (familyTable $ families p) p
 
 expandCase :: Map Id Family -> Prog -> Prog
 expandCase table p = onExp expand p

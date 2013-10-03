@@ -117,3 +117,25 @@ freshBody (vs, e) =
      e' <- freshen e
      let s = zip (map Var ws) vs
      return (ws, substMany e' s)
+
+-- Clever App constructor
+
+app :: Exp -> [Exp] -> Exp
+app e [] = e
+app e es = App e es
+
+-- Join left-nested applications as far as possible.
+
+joinApps :: Prog -> Prog
+joinApps = onExp joinApp
+
+joinApp :: Exp -> Exp
+joinApp e = app e []
+  where
+    app (App e xs) ys = app e (xs ++ ys)
+    app (Case e as) ys =
+      Case (app e []) [(app p [], app e ys) | (p, e) <- as]
+    app (Let bs e) ys = Let [(v, app e []) | (v, e) <- bs] (app e ys)
+    app (Lam vs e) ys = App (Lam vs (app e [])) (map (`app` []) ys)
+    app e [] = e
+    app e ys = App e (map (`app` []) ys)
