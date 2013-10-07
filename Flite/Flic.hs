@@ -1,4 +1,4 @@
-module Flite.Flic where
+module Flite.Flic (flic, flicM) where
 
 import Flite.Syntax
 import Flite.Traversals

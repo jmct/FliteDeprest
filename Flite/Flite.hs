@@ -10,6 +10,7 @@ import Flite.Inline
 import Flite.Compile
 --import Flite.RedCompile
 import Flite.TypeChecker2
+import Flite.Flic
 import qualified Flite.RedFrontend
 import Data.List
 import System.Environment
@@ -25,6 +26,7 @@ data Flag =
   | StrictnessAnalysis
   | TypeCheck
   | CompileType
+  | Flic 
   deriving Eq
 
 isDisjoint (Inline i) = False
@@ -43,6 +45,7 @@ options =
   , Option ['s'] [] (NoArg StrictnessAnalysis) "employ strictness analysis"
   , Option ['t'] [] (NoArg TypeCheck) "type-checking"
   , Option ['R'] [] (NoArg CompileType) "compile to Reduceron + type-info"
+  , Option ['T'] [] (NoArg Flic) "Translate Flite to SPJ Core"
   ]
   where
     redDefaults = CompileToRed 6 4 2 1 0
@@ -83,6 +86,7 @@ run flags fileName =
                             --cr <- mapM_ print $ redCompile p  
                             tc <-print (tcheck p)
                             return ()
+       [Flic]         -> putStrLn $ flic p
        _ -> error (usageInfo header options)
 
 -- Auxiliary
