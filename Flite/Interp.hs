@@ -40,7 +40,7 @@ val (Alts as _) = lut (map F as)
 val (Ctr s arity i) = C s arity i []
 val (Fun f) = F f
 val (Int n) = N n
-val Bottom = Error "_|_"
+val Bottom = Error "Val = _|_"
 val (Let bs e) = elimLet vs (map val es) (val e)
   where (vs, es) = unzip bs
 

@@ -42,6 +42,9 @@ toOne n = case (==) n 1 of {
             False -> Cons n (toOne ((-) n 1));
           };
 
-main = emitInt (nsoln 10) 0;
+emitStr Nil k = k;
+emitStr (Cons c cs) k = emit c (emitStr cs k);
+
+main = emitStr ("10 Queens: ") (emitInt (nsoln 10) (emit '\n' 0));
 
 }
