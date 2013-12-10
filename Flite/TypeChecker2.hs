@@ -205,7 +205,7 @@ old_bvar :: (Id, Type_scheme) -> Type_exp
 old_bvar (x,SCHEME [] t) =t                      
                      
  {--old case rule        
-tccase :: Type_env -> Name_supply -> Exp -> [(Exp,Exp)] -> Maybe (Subst,Type_exp)                                             
+tccase :: Type_env -> Name_supply -> Exp -> [(Exp,Exp)] -> Maybe (Subst,Type_exp) 
 tccase gamma ns exp alts = 
  do
     let (tvn,ns')    = allowName ns  
@@ -221,7 +221,7 @@ tccase gamma ns exp alts =
     sa            <- unifyl s1 [(TVAR tvn',talt)|talt <- talts]
     return (spat `scomp` sa `scomp` s3 `scomp` s2  `scomp` s1 , TVAR tvn')  
 --}
-tccase :: Type_env -> Name_supply -> Exp -> [(Exp,Exp)] -> Maybe (Subst,Type_exp,Type_env)                                             
+tccase :: Type_env -> Name_supply -> Exp -> [(Exp,Exp)] -> Maybe (Subst,Type_exp,Type_env)
 tccase gamma ns exp alts =  
  do
     let (tvn,ns')    = allowName ns  

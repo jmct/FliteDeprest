@@ -43,7 +43,7 @@ options =
   , Option ['i'] [] (OptArg (Inline . fmap read) "MAXAPS")
                     "inline small function bodies"
   , Option ['s'] [] (NoArg StrictnessAnalysis) "employ strictness analysis"
-  , Option ['t'] [] (NoArg TypeCheck) "type-checking"
+  , Option ['t'] [] (NoArg TypeCheck) "show result of type-checking"
   , Option ['R'] [] (NoArg CompileType) "compile to Reduceron + type-info"
   , Option ['T'] [] (NoArg Flic) "Translate Flite to SPJ Core"
   ]
@@ -80,8 +80,13 @@ run flags fileName =
 {-       [CompileToRed slen alen napps nluts nregs] ->
         do let sa = StrictnessAnalysis `elem` flags
            mapM_ print $ redCompile inlineFlag sa slen alen napps nluts nregs p -}
-       [TypeCheck]     -> print $ tcheck p --putStrLn $ showfuntypes $ tcheck p
+       [TypeCheck]     -> let (fInfo, dInfo) = tcheck p in do
+                            putStrLn "Function Types:"
+                            putStrLn $ unlines $ map show fInfo
+                            putStrLn "\nData Decl Info:"
+                            putStrLn $ unlines $ map show dInfo
        [CompileType]   -> do 
+
                             --tc <- putStrLn $ showfuntypes $ tcheck p
                             --cr <- mapM_ print $ redCompile p  
                             tc <-print (tcheck p)
