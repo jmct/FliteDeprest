@@ -26,6 +26,10 @@ data Exp = App Exp [Exp]
          | Ctr Id Int Int
          | Lam [Id] Exp
 
+           --The next two are for Strictness Analysis
+         | Val TwoPoint
+         | List FourPoint
+
            -- For speculative evaluation of primitive redexes.
          | PRSApp Id [Exp]   -- guaranteed PRS evaluable (static analysis)
          | PrimApp Id [Exp]  -- candidate for PRS (dynamic testing)
@@ -50,6 +54,22 @@ data TypeExp =   TEVar String
                 |TECons String [TypeExp]
                 |TECon  String
               deriving (Eq,Show)
+
+
+
+--Stricness Domain Values
+data TwoPoint = T
+              | B
+            deriving (Eq, Show)
+
+data FourPoint = FullyStrict
+               | SpineStrict
+               | InfList
+               | BList
+            deriving (Eq, Show)
+
+-- Strictness of each function in each argument
+type Strictness = [(Id, [Bool])]
 
 
 -- Primitive functions

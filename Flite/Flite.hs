@@ -11,7 +11,7 @@ import Flite.Compile
 --import Flite.RedCompile
 import Flite.TypeChecker2
 import Flite.Flic
-import qualified Flite.RedFrontend
+--import qualified Flite.RedFrontend
 import Data.List
 import System.Environment
 import System.IO

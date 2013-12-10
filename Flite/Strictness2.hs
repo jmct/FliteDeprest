@@ -9,43 +9,16 @@ import Flite.Descend
 import Flite.Dependency
 
 
-data TwoPoint = Top
-              | Bottom
-
-data FourPoint = FullyStrict
-               | SpineStrict
-               | InfList
-               | Bottom
-
--- Strictness of each function in each argument
-type Strictness = [(Id, [Bool])]
-
-data SDomain = SApp SExp [SExp]
-             | SCase Sexp [SAlt]
-             | Let [SBinding] SExp
-             | SVar Id
-             | SFun Id
-             | Val TwoPoint
-             | List FourPoint
-
-type SPat = SExp
-
-type SAlt = (Pat, SExp)
-
-type SBinding = (Id, SExp)
-
-type SApp = [SExp]
-
 -- Lift an expression to the abstract domain
-abstr :: Exp -> SDomain
-abstr (Var v) = SVar v
-abstr (Fun f) = SFun f
+abstr :: Exp -> Exp
+abstr (Var v) = Var v
+abstr (Fun f) = Fun f
 abstr (Int n) = Val Top
 abstr (Con c) = Val Top
 abstr (App (Con c) es) = mayTerminate -- TODO check the constructor tag to decide what to do
 abstr (App (Fun f) [e0, e1])
   | isPrimId f = conj (abstr e0) (abstr e1)
-abstr (App e es) = SApp (abstr e) (map abstr es)
+abstr (App e es) = App (abstr e) (map abstr es)
 abstr (Case e alts) = conj e (abstrAlts alts)
 abstr (Let bs e) = Let [(v, abstr e) | (v, e) <- bs] (abstr e)
 
