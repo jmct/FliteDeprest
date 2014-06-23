@@ -16,6 +16,10 @@ import Data.List
 import System.Environment
 import System.IO
 import System.Console.GetOpt
+import Flite.Fresh
+import Flite.Defunct2
+import Flite.Strictness2
+import Flite.Projections
 
 data Flag =
     Desugar

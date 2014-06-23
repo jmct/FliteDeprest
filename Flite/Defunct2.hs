@@ -17,9 +17,7 @@ type Replacement = (Exp, Exp) -- (from, to)
 
 
 defunctionalise :: Prog -> Prog
-defunctionalise p = trace (prettyProg p') p' -- trace (show p') p'
-    where
-        p' = defunctionalise' {-$ trace (show p)-} p
+defunctionalise p = defunctionalise' p
 
 
 defunctionalise' :: Prog -> Prog

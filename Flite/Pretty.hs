@@ -32,10 +32,12 @@ instance Pretty Exp where
 	pretty (Con c)		= text c
 	pretty (Int i)		= int i
 	pretty (Bottom)		= text "Undef"
+	pretty (Unfreeze e)		= text "Unfreeze " <> pretty e
+	pretty (Freeze e)		= text "Freeze " <> pretty e
 
 ---Print types
-instance Show Type_exp where
-  show t =  showWith id (varMap t) t
+--instance Show Type_exp where
+ -- show t =  showWith id (varMap t) t
 
 showWith :: (String -> String) -> [([Int],String)] -> Type_exp -> String
 showWith b m (TVAR tvn)      = (fromJust $ lookup tvn m) 
@@ -50,6 +52,7 @@ showWith b m (TCONS tcn ts)  =
      --             where [t1,t2] = ts 
      "::"     ->  showWith id m t1 ++ " :: " ++ showWith id m t2  ++ "\n"
                   where [t1,t2] = ts            
+     "Int"    ->  "Integer"
      _        ->  if ts==[] then tcn 
                   else tcn ++ " " ++ (concat $ intersperse " " (map (showWith brack m) ts))
      

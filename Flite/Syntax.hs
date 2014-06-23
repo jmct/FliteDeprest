@@ -26,14 +26,14 @@ data Exp = App Exp [Exp]
          | Ctr Id Int Int
          | Lam [Id] Exp
 
-           --The next two are for Strictness Analysis
-         | Val TwoPoint
-         | List FourPoint
-
            -- For speculative evaluation of primitive redexes.
          | PRSApp Id [Exp]   -- guaranteed PRS evaluable (static analysis)
          | PrimApp Id [Exp]  -- candidate for PRS (dynamic testing)
          | Prim Id
+           
+           -- For Projections we need the following extensions to the AST
+         | Freeze Exp
+         | Unfreeze Exp
   deriving (Eq,Show)
 
 type Pat = Exp
@@ -48,7 +48,9 @@ type App = [Exp]
 type Tvname = [Int]
 data Type_exp = TVAR Tvname
               | TCONS [Char] [Type_exp]
-              deriving (Eq)
+                -- For Projections we need to be able to lift a type
+              | Lift Type_exp
+              deriving (Eq, Show)
 
 data TypeExp =   TEVar String
                 |TECons String [TypeExp]
@@ -58,19 +60,15 @@ data TypeExp =   TEVar String
 
 
 --Stricness Domain Values
-data TwoPoint = T
-              | B
-            deriving (Eq, Show)
+data FlatD = T
+           | B
+        deriving (Eq, Show)
 
-data FourPoint = FullyStrict
-               | SpineStrict
-               | InfList
-               | BList
-            deriving (Eq, Show)
-
--- Strictness of each function in each argument
-type Strictness = [(Id, [Bool])]
-
+data ListD = FullyStrict
+           | SpineStrict
+           | InfList
+           | BList
+        deriving (Eq, Show)
 
 -- Primitive functions
 
