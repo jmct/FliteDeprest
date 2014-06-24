@@ -4,6 +4,8 @@ Latest attempt at projections.
 > import Flite.Syntax
 > import Flite.Traversals
 > import Flite.Descend
+> import Data.Maybe (fromMaybe)
+> import Data.List (find)
 > import qualified Data.Set as S
 > import qualified Data.Map as M
 
@@ -98,11 +100,16 @@ type variables. This gives us a need to convert our type expressions to the
 following form
 
 > data PTExp = PTVar String
->            | PTCon String [PTExp]
+>            | PTCon String [PTExp] -- The PTExp must be (PTEmpty | PTProd | PTVar)
 >            | PTSum [PTExp]
->            | PTProd [PTExp] -- I don't know if I need this...
+>            | PTProd [PTExp] -- I may not need this...
 >            | Mu String PTExp
+>            | PTEmpty
 >               deriving (Show, Eq)
+
+> mapOverCons :: (PTExp -> PTExp) -> [PTExp] -> [PTExp]
+> mapOverCons f xs = map g xs
+>   where g (PTCon n exps) = PTCon n (map f exps)
 
 So the standard List type could be represented as
 
@@ -136,12 +143,14 @@ Let's convert the data-type declarations to use the `PTExp` type
 > convertDTRhs xs              = PTSum $ map convertCon xs
 
 > convertCon :: (String, [TypeExp]) -> PTExp
-> convertCon (name, exp) = PTCon name (map convertTExp exp)
+> convertCon (name, [])    = PTCon name [PTEmpty]
+> convertCon (name, exps)  = PTCon name (map convertTExp exps)
 
 > convertTExp :: TypeExp -> PTExp
-> convertTExp (TEVar name)        = PTVar name
-> convertTExp (TECons name texps) = PTCon name $ map convertTExp texps
-> convertTExp (TECon name)        = PTCon name []
+> convertTExp (TEVar name)         = PTVar name
+> convertTExp (TECons name [])     = PTCon name [PTEmpty]
+> convertTExp (TECons name texps)  = PTCon name $ map convertTExp texps
+> convertTExp (TECon name)         = PTCon name [PTEmpty]
 
 Now that we have the Data declarations in a form closer to Hinze's we can
 move forward.
@@ -149,4 +158,28 @@ move forward.
 Hinze gives us a function that ensures the type expression is in the proper form
 (unfix, basically).
 
-type ...
+> type TEnv = M.Map String PTExp 
+> type ExSet = S.Set String
+
+> initTEnv :: TEnv
+> initTEnv = M.empty
+
+> initExSet :: ExSet
+> initExSet = S.empty
+
+> lookupDef :: String -> [PDataDec] -> Maybe PDataDec
+> lookupDef n = find f
+>    where f dec = pDataName dec == n
+
+
+> expand :: [PDataDec] -> ExSet -> TEnv -> PTExp -> PTExp
+> expand ds u r PTEmpty        = PTEmpty
+> expand ds u r a@(PTVar n)    = fromMaybe a $ M.lookup n r
+> expand ds u r (PTSum cs)     = PTSum $ mapOverCons (expand ds u r) cs
+> expand ds u r (PTProd cs)    = PTProd $ map (expand ds u r) cs
+> expand ds u r (PTCon n exps)
+>   | n `S.member` u = PTVar n
+>   | otherwise      = Mu n $ expand ds u' r' rhs
+>     where u'             = n `S.insert` u
+>           PData n as rhs = lookupDef n ds
+>           r'             = M.fromAscList $ zip as $ map (expand ds u r) exps
