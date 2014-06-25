@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Flite.Syntax where
+
+import Data.Generics.Uniplate.Data
+import Data.Data
 
 type Prog = [Decl]
 
@@ -34,7 +38,7 @@ data Exp = App Exp [Exp]
            -- For Projections we need the following extensions to the AST
          | Freeze Exp
          | Unfreeze Exp
-  deriving (Eq,Show)
+  deriving (Eq,Show, Data, Typeable)
 
 type Pat = Exp
 

@@ -1,11 +1,14 @@
 Latest attempt at projections.
 
+> {-# LANGUAGE DeriveDataTypeable #-}
 > module Flite.Projections where
 > import Flite.Syntax
 > import Flite.Traversals
-> import Flite.Descend
-> import Data.Maybe (fromMaybe)
-> import Data.List (find)
+> import qualified Flite.Descend as D
+> import Data.Maybe (fromMaybe, fromJust) --fromJust used in safe place
+> import Data.List (find, intersect, any)
+> import Data.Generics.Uniplate.Data
+> import Data.Data
 > import qualified Data.Set as S
 > import qualified Data.Map as M
 
@@ -56,17 +59,17 @@ program with explicit thunks. Start with expressions
 > lazifySnd :: [(a, Exp)] -> [(a, Exp)]
 > lazifySnd xs = [(x, lazifyExp e) | (x, e) <- xs]
 
-> cleanup :: Exp -> Exp
-> cleanup exp = descend f exp
->   where f (Freeze (Unfreeze e)) = e
->         f x = x
+> cleanFreeze :: Exp -> Exp
+> cleanFreeze = transform f
+>   where f (Freeze (Unfreeze e)) = e -- See Hinze Dis. pg 36 and Sec A.4.1
+>         f v                     = v
 
 The cleanup function is not working... Import Uniplate?
 
 Then we can lazify an entire program
 
 > lazifyProg :: Prog -> Prog
-> lazifyProg fs = [Func name args (cleanup $ lazifyExp rhs) | Func name args rhs <- fs]
+> lazifyProg fs = [Func name args (cleanFreeze $ lazifyExp rhs) | Func name args rhs <- fs]
 
 
 Now we run into some confusion. Flite has two types representing type expressions:
