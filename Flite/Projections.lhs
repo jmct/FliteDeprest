@@ -103,16 +103,23 @@ type variables. This gives us a need to convert our type expressions to the
 following form
 
 > data PTExp = PTVar String
->            | PTCon String [PTExp] -- The PTExp must be (PTEmpty | PTProd | PTVar)
+>            | PTCon String PTExp -- Invariant: The PTExp must be (PTEmpty | PTProd | PTVar)
 >            | PTSum [PTExp]
->            | PTProd [PTExp] -- I may not need this...
+>            | PTProd [PTExp]
 >            | Mu String PTExp
 >            | PTEmpty
->               deriving (Show, Eq)
+>               deriving (Show, Eq, Data, Typeable)
+
+When wanting the 'list' of arguments to a constructor we grab the possible values
+assuming the invariant above holds.
+
+> getTExpList :: PTExp -> [PTExp]
+> getTExpList (PTProd xs) = xs
+> getTExpList x           = [x]
 
 > mapOverCons :: (PTExp -> PTExp) -> [PTExp] -> [PTExp]
 > mapOverCons f xs = map g xs
->   where g (PTCon n exps) = PTCon n (map f exps)
+>   where g (PTCon n exps) = PTCon n (f exps)
 
 So the standard List type could be represented as
 
@@ -137,23 +144,47 @@ Let's convert the data-type declarations to use the `PTExp` type
 >                       }
 >                   deriving (Show, Eq)
 
+> isRecData :: [PDataDec] -> PDataDec -> Bool
+> isRecData ds d = isRecData' ds [] d
+
+> --     All defs-> Names of ADTs seen so far -> ADT in question -> Result
+> isRecData' :: [PDataDec] -> [String] -> PDataDec -> Bool 
+> isRecData' ds e (PData n as rhs)
+>   | null dts             = False
+>   | any (`elem` e') dts  = True
+>   | otherwise            = or $ map (isRecData' ds e' . getDD ds) dts
+>   where dts   = ns `intersect` allCons rhs
+>         ns    = map pDataName ds
+>         e'    = n:e
+>         getDD ds s = fromJust $ find (\(PData n _ _) -> n == s) ds
+>                      -- ^ no chance of failure since s always comes from ds
+
+> allCons :: PTExp -> [String]
+> allCons (PTCon n expr) = n : allCons expr
+> allCons (PTSum exps)   = concatMap allCons exps
+> allCons (PTProd exps)  = concatMap allCons exps
+> allCons (Mu _ expr)    = allCons expr
+> allCons _              = []
+
 > convertDT :: [Decl] -> [PDataDec]
 > convertDT dcls = [ PData n args (convertDTRhs rhs)
 >                  | Data n args rhs <- dcls ]
 
 > convertDTRhs :: [(String, [TypeExp])] -> PTExp
-> convertDTRhs [(name, texp)]  = PTCon name $ map convertTExp texp
+> convertDTRhs [(name, texp)]  = PTCon name $ PTProd $ map convertTExp texp
 > convertDTRhs xs              = PTSum $ map convertCon xs
 
 > convertCon :: (String, [TypeExp]) -> PTExp
-> convertCon (name, [])    = PTCon name [PTEmpty]
-> convertCon (name, exps)  = PTCon name (map convertTExp exps)
+> convertCon (name, [])    = PTCon name PTEmpty
+> convertCon (name, [exps]) = PTCon name (convertTExp exps)
+> convertCon (name, exps)  = PTCon name $ PTProd (map convertTExp exps)
 
 > convertTExp :: TypeExp -> PTExp
 > convertTExp (TEVar name)         = PTVar name
-> convertTExp (TECons name [])     = PTCon name [PTEmpty]
-> convertTExp (TECons name texps)  = PTCon name $ map convertTExp texps
-> convertTExp (TECon name)         = PTCon name [PTEmpty]
+> convertTExp (TECons name [])     = PTCon name PTEmpty
+> convertTExp (TECons name [texp]) = PTCon name $ convertTExp texp
+> convertTExp (TECons name texps)  = PTCon name $ PTProd $ map convertTExp texps
+> convertTExp (TECon name)         = PTCon name PTEmpty
 
 Now that we have the Data declarations in a form closer to Hinze's we can
 move forward.
@@ -174,15 +205,24 @@ Hinze gives us a function that ensures the type expression is in the proper form
 > lookupDef n = find f
 >    where f dec = pDataName dec == n
 
-
-> expand :: [PDataDec] -> ExSet -> TEnv -> PTExp -> PTExp
-> expand ds u r PTEmpty        = PTEmpty
-> expand ds u r a@(PTVar n)    = fromMaybe a $ M.lookup n r
-> expand ds u r (PTSum cs)     = PTSum $ mapOverCons (expand ds u r) cs
-> expand ds u r (PTProd cs)    = PTProd $ map (expand ds u r) cs
-> expand ds u r (PTCon n exps)
+> expand' :: [PDataDec] -> ExSet -> TEnv -> PTExp -> PTExp
+> expand' ds u r PTEmpty        = PTEmpty
+> expand' ds u r a@(PTVar n)    = fromMaybe a $ M.lookup n r
+> expand' ds u r (PTSum cs)     = PTSum $ mapOverCons (expand' ds u r) cs
+> expand' ds u r (PTProd cs)    = PTProd $ map (expand' ds u r) cs
+> expand' ds u r (PTCon n expr)
 >   | n `S.member` u = PTVar n
->   | otherwise      = Mu n $ expand ds u' r' rhs
->     where u'             = n `S.insert` u
->           PData n as rhs = lookupDef n ds
->           r'             = M.fromAscList $ zip as $ map (expand ds u r) exps
+>   | otherwise      = case lookupDef n ds of
+>                          Nothing  -> PTCon n $ expand' ds u r expr
+>                          Just def -> expand' ds u' r' rhs
+>                            where u'             = n `S.insert` u
+>                                  r'             = M.fromAscList $ zip as $ map (expand' ds u r) $ getTExpList expr
+>                                  PData n as rhs = def
+
+> expandDef :: [PDataDec] -> PDataDec -> PDataDec
+> expandDef ds d@(PData n as rhs)
+>   | isRecData ds d = PData n as $ Mu n $ expand' ds (S.singleton n) initTEnv rhs
+>   | otherwise = PData n as $ expand' ds initExSet initTEnv rhs
+
+> expandAll :: [PDataDec] -> [PDataDec]
+> expandAll ds = map (expandDef ds) ds
