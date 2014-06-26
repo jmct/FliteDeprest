@@ -1,7 +1,15 @@
-Latest attempt at projections.
+This file takes the standard F-lite core and converts it to a form suitable
+for Projections analysis. 
 
 > {-# LANGUAGE DeriveDataTypeable #-}
-> module Flite.Projections where
+> module Flite.Projections.Conversion 
+>     (
+>       convertDT   -- Converts from parsed TypeExp to PTExp
+>     , lazifyFuncs -- Applies Hinze's method of translating call-by-need to call-by-value
+>     , expandAll   -- Transforms PTExps to form with explicit recursion under Mu
+>     ) where
+
+
 > import Flite.Syntax
 > import Flite.Traversals
 > import qualified Flite.Descend as D
@@ -68,8 +76,8 @@ The cleanup function is not working... Import Uniplate?
 
 Then we can lazify an entire program
 
-> lazifyProg :: Prog -> Prog
-> lazifyProg fs = [Func name args (cleanFreeze $ lazifyExp rhs) | Func name args rhs <- fs]
+> lazifyFuncs :: Prog -> Prog
+> lazifyFuncs fs = [Func name args (cleanFreeze $ lazifyExp rhs) | Func name args rhs <- fs]
 
 
 Now we run into some confusion. Flite has two types representing type expressions:
