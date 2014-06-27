@@ -1,4 +1,4 @@
-module Flite.Flic (flic, flicM, desugarForG, util) where
+module Flite.Flic (flic, flicM, desugarProj) where
 
 import Flite.Syntax
 import Flite.Traversals
@@ -35,8 +35,8 @@ desugarForDandT p =
              >>= desugarCase
              >>= desugarEqn
 
-util :: Prog -> Prog
-util p = snd $ runFresh (desugarForDandT p) "x" 0
+desugarProj :: Prog -> Prog
+desugarProj p = snd $ runFresh (desugarForDandT p) "x" 0
 
 util2 :: Prog -> Prog
 util2 p = snd $ runFresh (return (identifyFuncs p) >>= desugarCase) "x" 0
