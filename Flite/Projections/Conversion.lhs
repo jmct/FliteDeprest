@@ -4,14 +4,16 @@ for Projections analysis.
 > {-# LANGUAGE DeriveDataTypeable #-}
 > module Flite.Projections.Conversion 
 >     (
->       convertDT   -- Converts from parsed TypeExp to PTExp
->     , lazifyFuncs -- Applies Hinze's method of translating call-by-need to call-by-value
->     , expandAll   -- Transforms PTExps to form with explicit recursion under Mu
+>       convertProg -- Take parsed program and return a Triple of:
+>                   -- the transformed functions, the expanded and transformed types
+>                   -- and the types of top-level functions
 >     ) where
 
 
 > import Flite.Syntax
 > import Flite.Traversals
+> import Flite.Flic (desugarProj)
+> import Flite.TypeChecker2 (tcheck)
 > import qualified Flite.Descend as D
 > import Data.Maybe (fromMaybe, fromJust) --fromJust used in safe place
 > import Data.List (find, intersect, any)
@@ -72,8 +74,6 @@ program with explicit thunks. Start with expressions
 >   where f (Freeze (Unfreeze e)) = e -- See Hinze Dis. pg 36 and Sec A.4.1
 >         f v                     = v
 
-The cleanup function is not working... Import Uniplate?
-
 Then we can lazify an entire program
 
 > lazifyFuncs :: Prog -> Prog
@@ -116,6 +116,7 @@ following form
 >            | PTProd [PTExp]
 >            | Mu String PTExp
 >            | PTEmpty
+>            | LiftT PTExp -- Used only for call-by-value
 >               deriving (Show, Eq, Data, Typeable)
 
 When wanting the 'list' of arguments to a constructor we grab the possible values
@@ -128,6 +129,7 @@ assuming the invariant above holds.
 > mapOverCons :: (PTExp -> PTExp) -> [PTExp] -> [PTExp]
 > mapOverCons f xs = map g xs
 >   where g (PTCon n exps) = PTCon n (f exps)
+>         g expr           = f expr
 
 So the standard List type could be represented as
 
@@ -184,7 +186,7 @@ Let's convert the data-type declarations to use the `PTExp` type
 
 > convertCon :: (String, [TypeExp]) -> PTExp
 > convertCon (name, [])    = PTCon name PTEmpty
-> convertCon (name, [exps]) = PTCon name (convertTExp exps)
+> convertCon (name, [exps]) = PTCon name $ PTProd [(convertTExp exps), PTEmpty]
 > convertCon (name, exps)  = PTCon name $ PTProd (map convertTExp exps)
 
 > convertTExp :: TypeExp -> PTExp
@@ -234,3 +236,25 @@ Hinze gives us a function that ensures the type expression is in the proper form
 
 > expandAll :: [PDataDec] -> [PDataDec]
 > expandAll ds = map (expandDef ds) ds
+
+Now we can apply the call-by-value transformation to the data-types
+
+> lazifyData :: [PDataDec] -> [PDataDec]
+> lazifyData ds = [PData n as (lazifyTExp rhs) | PData n as rhs <- ds]
+
+> lazifyTExp :: PTExp -> PTExp
+> lazifyTExp (PTSum exps)      = PTSum $ mapOverCons lazifyTExp exps
+> lazifyTExp (PTProd exps)     = PTProd $ mapOverCons (LiftT . lazifyTExp) exps
+> lazifyTExp (PTCon n PTEmpty) = PTCon n PTEmpty
+> lazifyTExp (PTCon n expr)    = PTCon n $ lazifyTExp expr
+> lazifyTExp (Mu n expr)       = Mu n $ lazifyTExp expr
+> lazifyTExp expr              = expr
+
+Now we can take a Program and return the lazified functions; the converted,
+expanded, and lazified data-types; and the types of the top-level functions
+
+> convertProg :: Prog -> (Prog, [PDataDec], [(Id, Type_exp)])
+> convertProg decs = (lFuncs, lData, ts)
+>   where lFuncs   = lazifyFuncs $ desugarProj decs
+>         (ts, ds) = tcheck decs
+>         lData    = lazifyData $ expandAll $ convertDT $ ds
