@@ -7,6 +7,8 @@ for Projections analysis.
 >       convertProg -- Take parsed program and return a Triple of:
 >                   -- the transformed functions, the expanded and transformed types
 >                   -- and the types of top-level functions
+>     , PTExp(..)   -- The data-type representing types
+>     , PDataDec(..)
 >     ) where
 
 
