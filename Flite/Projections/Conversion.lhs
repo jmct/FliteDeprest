@@ -1,7 +1,6 @@
 This file takes the standard F-lite core and converts it to a form suitable
 for Projections analysis. 
 
-> {-# LANGUAGE DeriveDataTypeable #-}
 > module Flite.Projections.Conversion 
 >     (
 >       convertProg -- Take parsed program and return a Triple of:
@@ -19,8 +18,7 @@ for Projections analysis.
 > import qualified Flite.Descend as D
 > import Data.Maybe (fromMaybe, fromJust) --fromJust used in safe place
 > import Data.List (find, intersect, any)
-> import Data.Generics.Uniplate.Data
-> import Data.Data
+> import Data.Generics.Uniplate.Operations
 > import qualified Data.Set as S
 > import qualified Data.Map as M
 
@@ -119,7 +117,7 @@ following form
 >            | Mu String PTExp
 >            | PTEmpty
 >            | LiftT PTExp -- Used only for call-by-value
->               deriving (Show, Eq, Data, Typeable)
+>               deriving (Show, Eq)
 
 When wanting the 'list' of arguments to a constructor we grab the possible values
 assuming the invariant above holds.

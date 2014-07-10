@@ -1,8 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module Flite.Syntax where
 
-import Data.Generics.Uniplate.Data
-import Data.Data
+import Data.Generics.Uniplate.Direct
+import Data.Generics.Str
 
 type Prog = [Decl]
 
@@ -38,7 +37,31 @@ data Exp = App Exp [Exp]
            -- For Projections we need the following extensions to the AST
          | Freeze Exp
          | Unfreeze Exp
-  deriving (Eq,Show, Data, Typeable)
+  deriving (Eq,Show)
+
+instance Uniplate Exp where
+    uniplate (App e es)  = plate App |* e ||* es
+    uniplate (Case e as) = (cs, \str -> let (e':ss) = strList str
+                                        in Case e' (zip ps ss))
+        where cs = listStr (e:map snd as)
+              ps = map fst as
+    uniplate (Let bs e)  = (cs, \str -> let (e':ss) = strList str
+                                        in Let (zip is ss) e')
+        where cs = listStr (e:map snd bs)
+              is = map fst bs
+    uniplate (Var id)       = plate Var |- id
+    uniplate (Con id)       = plate Con |- id
+    uniplate (Fun id)       = plate Fun |- id
+    uniplate (Int n)        = plate Int |- n
+    uniplate (Bottom)       = plate Bottom
+    uniplate (Alts is n)    = plate Alts |- is |- n
+    uniplate (Ctr i n t)    = plate Ctr |- i |- n |- t
+    uniplate (Lam is e)     = plate Lam |- is |* e
+    uniplate (PRSApp i es)  = plate PRSApp |- i ||* es
+    uniplate (PrimApp i es) = plate PrimApp |- i ||* es
+    uniplate (Prim i)       = plate Prim |- i
+    uniplate (Freeze e)     = plate Freeze |* e
+    uniplate (Unfreeze e)   = plate Unfreeze |* e
 
 type Pat = Exp
 
