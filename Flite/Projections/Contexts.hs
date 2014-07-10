@@ -24,10 +24,23 @@ instance Uniplate Context where
     uniplate c          = (Zero, \Zero -> c)
 
 fromPTExp :: PTExp -> Context
-fromPTExp (PTVar n) = CVar n
-fromPTExp (PTCon n exp) =C
+fromPTExp PTEmpty     = CProd []
+fromPTExp (PTVar n)   = CVar n
+fromPTExp (PTCon n e) = fromPTExp e
+fromPTExp (PTSum es)  = CSum $ map f es
+    where f (PTCon n e) = (n, fromPTExp e)
+fromPTExp (PTProd es) = CProd $ map fromPTExp es
+fromPTExp (Mu n e)    = CMu n $ fromPTExp e
+fromPTExp (LiftT e)   = CLaz $ fromPTExp e
  
 
 -- This is not exactly right. It will not give us the correct variations for 'PTEmpty' contexts
 allContexts :: Context -> [Context]
-allContexts exprs = [ f j | (CVar n, f) <- contexts exprs, j <- [CStr (CVar n), CLaz (CVar n)]]
+allContexts c = concatMap allPrimContexts $ allLiftContexts c
+
+allPrimContexts :: Context -> [Context]
+allPrimContexts c = [ f j | (CProd [], f) <- contexts c, j <- [CProd [], CBot]]
+
+allLiftContexts :: Context -> [Context]
+allLiftContexts c = [ f j | (CLaz e, f) <- contexts c, j <- [CStr e, CLaz e]]
+

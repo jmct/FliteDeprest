@@ -1,5 +1,6 @@
 {
 
+data IntList = INil | ICons Int IntList;
 data MyPair a b = MkPr a b;
 data Bool    = True | False ;
 data AbsPair = AP (MyPair Bool Bool);
