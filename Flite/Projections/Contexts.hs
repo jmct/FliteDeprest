@@ -4,10 +4,22 @@ import Flite.Projections.Conversion
 import Data.Generics.Uniplate.Direct
 import Data.Generics.Str
 import Data.Maybe (fromMaybe)
+import Data.List (nub)
+import Data.Set ( isSubsetOf
+                , union
+                , unions
+                , elems
+                , insert
+                , singleton
+                , empty
+                , Set
+                )
+import qualified Data.Set as S
 
 
 
 data Context = CVar String
+             | CTVar String Context
              | CRec String
              | CBot
              | CProd [Context]
@@ -15,7 +27,34 @@ data Context = CVar String
              | CMu String Context
              | CStr Context
              | CLaz Context
-         deriving (Show, Eq)
+             | Context :&: Context
+             | Context :+: Context
+         deriving (Show, Eq, Ord)
+
+infixr 2 :+:
+infixr 3 :&:
+infix 1 <~
+infixr 2 \/
+infixr 3 &
+
+toSet :: Context -> Set (Set Context)
+toSet CBot      = empty
+toSet (c :+: d) = toSet c `union` toSet d
+toSet c         = singleton $ toSet' c
+
+toSet' :: Context -> Set Context
+toSet' CBot      = empty
+toSet' (c :&: d) = unions $ (elems $ toSet c) ++ (elems $ toSet d)
+toSet' c         = singleton c
+
+filterEOut :: Set (Set a) -> Set (Set a)
+filterEOut =  S.filter (not . S.null)
+
+toList :: Context -> [[Context]]
+toList (c :+: d) = toList c ++ toList d
+toList (c :&: d) = [concat $ concatMap toList [c,d]]
+toList c          = [[c]]
+
 
 -- Because we're using an Assc-List, it's useful to map over the range
 mapRange :: (a -> b) -> [(c,a)] -> [(c,b)]
@@ -32,6 +71,7 @@ instance Uniplate Context where
     uniplate (CMu n c)  = plate CMu |- n |* c
     uniplate (CStr c)   = plate CStr |* c
     uniplate (CLaz c)   = plate CLaz |* c
+    uniplate (CTVar n c) = plate CTVar |- n |* c
     uniplate c          = (Zero, \Zero -> c)
 
 -- Conversion from our representation of types, into our 'prototype' context for the type.
@@ -55,8 +95,12 @@ muify (CMu n c) = CMu n $ transform f c
           f x = x
 muify c         = c
  
+-- return all of the _principle_ contexts from a prototype
+allPrinContexts :: Context -> [Context]
+allPrinContexts = nub . map norm . concatMap allPrimContexts . allLiftContexts
 
--- Closer to working
+-- return all variations of a context. The resulting list could have multiple
+-- variations of an equivalent context. 
 allContexts :: Context -> [Context]
 allContexts = concatMap allPrimContexts . concatMap allLiftContexts . allVarContexts
 
@@ -86,6 +130,7 @@ type ImEnv = [(String, Bool)]
 improper :: ImEnv -> Context -> Bool
 improper e CBot       = True
 improper e (CVar n)   = False
+improper e (CTVar a c) = False
 improper e (CProd []) = False
 improper e (CRec n)   = fromMaybe False $ lookup n e
 improper e (CLaz c)   = False && improper e c
@@ -106,6 +151,7 @@ mkBotN (CStr c)   = CStr $ mkBotN c
 mkBotN (CSum cs)  = CSum $ mapRange mkBotN cs
 mkBotN (CProd cs) = CProd $ map mkBotN cs
 mkBotN (CMu n c)  = CMu n $ mkBotN c
+mkBotN c          = c
 
 -- Given a context, return the 'Bot' for that 'type'
 -- 'Good' version
@@ -129,13 +175,99 @@ norm r@(CMu n c)
     | otherwise  = CMu n $ norm c
 norm c        = c
 
+(<<=) :: Context -> Context -> Bool
+x <<= y = (x \/ y) == y
+
+-- Disjunction of demands. A value is only acceptable to the demand (a \/ b) if
+-- it is acceptable to a _or_ to b
+-- This definition is a translation of definition 6.21 in Hinze's diss.
+-- infixr 2 \/
 (\/) :: Context -> Context -> Context
+(CTVar a c) \/ (CTVar b d) = CTVar a (c :+: d)
+(CVar a) \/ (CVar b)     = CVar a
+(CRec a) \/ (CRec b)     = CRec a
 c \/ CBot                = c
 CBot \/ c                = c
 (CProd []) \/ c          = CProd []
 c \/ (CProd [])          = CProd []
 (CSum cs) \/ (CSum ds)   = if fcs /= fds
-                           then error "Performing disjunction on non-equivalent Contexts"
+                           then error "Performing disjunction on non-equivalent Sum-Contexts"
                            else CSum (zipWRange (\/) cs ds)
     where fcs = map fst cs
           fds = map fst ds
+(CProd cs) \/ (CProd ds) = if length cs /= length ds
+                           then error "Performing disjunction on non-equivalent Prod-Contexts"
+                           else CProd $ zipWith (\/) cs ds
+(CLaz c) \/ (CLaz d)     = CLaz $ c \/ d
+(CStr c) \/ (CLaz d)     = CLaz $ c \/ d
+(CLaz c) \/ (CStr d)     = CLaz $ c \/ d
+(CStr c) \/ (CStr d)     = CStr $ c \/ d
+(CMu n c) \/ (CMu o d)   = CMu n $ reRec n $ c \/ d
+
+reRec :: String -> Context -> Context
+reRec n = transform f
+  where f (CRec _) = CRec n
+        f x        = x
+
+joinList :: [Context] -> Context
+joinList = foldr1 (\/)
+
+
+-- Conjunction of demands. A value is only acceptable to the demand (a \/ b) if
+-- it is acceptable to a _and_ to b
+-- NOTE: I removed the call to 'norm' that is outlined in Hinze's thesis. 
+-- I believe that this is safe for our purposes, but I am also not very bright.
+-- TODO: Figure out if it _is_ safe. Prove it if possible.
+-- infixr 3 &
+(&) :: Context -> Context -> Context
+(CTVar a c) & (CTVar b d) = CTVar a (c :&: d)
+(CVar a) & (CVar b)     = CVar a
+(CRec a) & (CRec b)     = CRec a
+c & CBot                = CBot
+CBot & c                = CBot
+(CProd []) & (CProd []) = CProd []
+(CLaz c) & (CLaz d)     = CLaz $ c \/ d
+(CStr c) & (CLaz d)     = CStr $ c \/ c & d
+(CLaz c) & (CStr d)     = CStr $ c & d \/ d
+(CStr c) & (CStr d)     = CStr $ c & d
+(CSum cs) & (CSum ds)   = if fcs /= fds
+                          then error "Performing conjunction on non-equivalent Sum-Contexts"
+                          else CSum (zipWRange (&) cs ds)
+    where fcs = map fst cs
+          fds = map fst ds
+(CProd cs) & (CProd ds) = if length cs /= length ds
+                          then error "Performing conjunction on non-equivalent Prod-Contexts"
+                          else norm $ CProd $ zipWith (&) cs ds
+(CMu n c) & (CMu o d)
+    | k <~ y1 :&: y2        = norm $ CMu n $ c & d
+    | k <~ y1 :+: y1 :&: y2 = CMu n $ reRec n $ c \/ c & d
+    | k <~ y1 :&: y2 :+: y2 = CMu n $ reRec n $ c & d \/ d
+    | k <~ top              = CMu n $ reRec n $ c \/ d
+  where k = filterEOut $ toSet $ lubA "a" $ ((subRec (CTVar "a" (CVar "y1")) c)) & ((subRec (CTVar "a" (CVar "y2")) d))
+        y1 = CVar "y1"
+        y2 = CVar "y2"
+        top = y1 :+: y1 :&: y2 :+: y2
+x & y = error $ "\n\nThe 'lubA' contexts found no match... This is very impossible\n\nx: " ++ show x ++ "\ny: " ++ show y
+
+
+-- infix 1 <~
+(<~) :: Set (Set Context) -> Context -> Bool
+k <~ c = k `isSubsetOf` toSet c
+
+subRec :: Context -> Context -> Context
+subRec c = transform f
+  where f (CRec _) = c
+        f x        = x
+
+lubA :: String -> Context -> Context
+lubA a (CTVar b c)     = if a == b then c else CBot
+lubA a (CStr (CVar b)) = CBot
+lubA a (CLaz (CVar b)) = CBot
+lubA a (CRec b)          = CRec b
+lubA a (CProd [])        = CBot
+lubA a CBot              = CBot
+lubA a (CStr c)          = lubA a c
+lubA a (CLaz c)          = lubA a c
+lubA a (CSum cs)         = joinList $ map (lubA a . snd) cs
+lubA a (CProd cs)        = joinList $ map (lubA a) cs
+lubA a (CMu n c)         = lubA a c
