@@ -9,6 +9,8 @@ data Triple a b c = A a | B b | C c | D a (Triple a b c);
 data Shrub = Root Node;
 data Node = Void | Fork Shrub Shrub;
 data Rose a = R a (List (Rose a));
+data Tree a = Empty | BNode (Tree a) a (Tree a);
+data TreeBool = Leaf Bool | TNode TreeBool Bool TreeBool;
 
 map f Nil = Nil;
 map f (Cons x xs) = Cons (f x) (map f xs);
