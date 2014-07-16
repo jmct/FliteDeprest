@@ -37,6 +37,8 @@ infix 1 <~
 infixr 2 \/
 infixr 3 &
 
+-- This is only for when we are representing a context in the form a :+: b,
+-- which is not always the case
 toSet :: Context -> Set (Set Context)
 toSet CBot      = empty
 toSet (c :+: d) = toSet c `union` toSet d
@@ -49,11 +51,6 @@ toSet' c         = singleton c
 
 filterEOut :: Set (Set a) -> Set (Set a)
 filterEOut =  S.filter (not . S.null)
-
-toList :: Context -> [[Context]]
-toList (c :+: d) = toList c ++ toList d
-toList (c :&: d) = [concat $ concatMap toList [c,d]]
-toList c          = [[c]]
 
 
 -- Because we're using an Assc-List, it's useful to map over the range
@@ -130,7 +127,7 @@ type ImEnv = [(String, Bool)]
 improper :: ImEnv -> Context -> Bool
 improper e CBot       = True
 improper e (CVar n)   = False
-improper e (CTVar a c) = False
+improper e (CTVar a c) = c == CBot
 improper e (CProd []) = False
 improper e (CRec n)   = fromMaybe False $ lookup n e
 improper e (CLaz c)   = False && improper e c
@@ -162,6 +159,14 @@ mkBot = transform f
           f (CLaz c)   = CStr c
           f c          = c
 
+-- Given a conext, return the 'Abs' for that type
+mkAbs :: Context -> Context
+mkAbs = transform f
+    where f (CLaz c) = CLaz (mkBot c)
+          f (CBot)   = CProd []
+          f c        = c
+          
+
 -- Given a context, return the context in normal form.
 norm :: Context -> Context
 norm (CLaz c)    = CLaz $ norm c
@@ -177,6 +182,10 @@ norm c        = c
 
 (<<=) :: Context -> Context -> Bool
 x <<= y = (x \/ y) == y
+
+(#>) :: Context -> Context -> Context
+(CLaz _) #> k = k \/ mkAbs k
+(CStr _) #> k = k
 
 -- Disjunction of demands. A value is only acceptable to the demand (a \/ b) if
 -- it is acceptable to a _or_ to b
@@ -203,6 +212,7 @@ c \/ (CProd [])          = CProd []
 (CLaz c) \/ (CStr d)     = CLaz $ c \/ d
 (CStr c) \/ (CStr d)     = CStr $ c \/ d
 (CMu n c) \/ (CMu o d)   = CMu n $ reRec n $ c \/ d
+x \/ y                   = x :+: y
 
 reRec :: String -> Context -> Context
 reRec n = transform f
@@ -247,7 +257,8 @@ CBot & c                = CBot
         y1 = CVar "y1"
         y2 = CVar "y2"
         top = y1 :+: y1 :&: y2 :+: y2
-x & y = error $ "\n\nThe 'lubA' contexts found no match... This is very impossible\n\nx: " ++ show x ++ "\ny: " ++ show y
+x & y                   = x :&: y
+--x & y = error $ "\n\nThe 'lubA' contexts found no match... This is very impossible\n\nx: " ++ show x ++ "\ny: " ++ show y
 
 
 -- infix 1 <~
