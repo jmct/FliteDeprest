@@ -186,7 +186,7 @@ Let's convert the data-type declarations to use the `PTExp` type
 
 > convertCon :: (String, [TypeExp]) -> PTExp
 > convertCon (name, [])    = PTCon name PTEmpty
-> convertCon (name, [exps]) = PTCon name $ PTProd [(convertTExp exps), PTEmpty]
+> convertCon (name, [exps]) = PTCon name $ PTProd [convertTExp exps]
 > convertCon (name, exps)  = PTCon name $ PTProd (map convertTExp exps)
 
 > convertTExp :: TypeExp -> PTExp
