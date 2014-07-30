@@ -37,6 +37,12 @@ infix 1 <~
 infixr 2 \/
 infixr 3 &
 
+-- Grab the relevant context for a specific constructor in a Sum-type
+out :: Context -> String -> Context
+out (CSum cs) n = case lookup n cs of
+                    Just c  -> c
+                    Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
+
 -- This is only for when we are representing a context in the form a :+: b,
 -- which is not always the case
 toSet :: Context -> Set (Set Context)
@@ -162,10 +168,26 @@ mkBot = transform f
 -- Given a conext, return the 'Abs' for that type
 mkAbs :: Context -> Context
 mkAbs = transform f
-    where f (CLaz c) = CLaz (mkBot c)
-          f (CBot)   = CProd []
-          f c        = c
-          
+    where f (CLaz c)   = CLaz (mkBot c)
+          f (CSum cs)  = CSum $ map mkAbsCs cs
+          f c          = c
+{-
+mkAbs (CLaz c)   = CLaz (mkBot c)
+mkAbs (CSum cs)  = CSum $ map mkAbsCs cs
+mkAbs (CProd cs) = CProd $ map mkAbs cs
+-}
+
+mkAbsCs :: (String, Context) -> (String, Context)
+mkAbsCs (n, CBot) = (n, CProd [])
+mkAbsCs (n, c)    = (n, mkAbs c)
+
+hasESeq :: Context -> Bool
+hasESeq (CSum cs) = or $ map isECon cs
+
+isECon :: (String, Context) -> Bool
+isECon ((n, CBot))     = True
+isECon ((n, CProd [])) = True
+isECon _               = False
 
 -- Given a context, return the context in normal form.
 norm :: Context -> Context
