@@ -181,7 +181,7 @@ Let's convert the data-type declarations to use the `PTExp` type
 >                  | Data n args rhs <- dcls ]
 
 > convertDTRhs :: [(String, [TypeExp])] -> PTExp
-> convertDTRhs [(name, texp)]  = PTCon name $ PTProd $ map convertTExp texp
+> --convertDTRhs [(name, texp)]  = PTCon name $ PTProd $ map convertTExp texp
 > convertDTRhs xs              = PTSum $ map convertCon xs
 
 > convertCon :: (String, [TypeExp]) -> PTExp
