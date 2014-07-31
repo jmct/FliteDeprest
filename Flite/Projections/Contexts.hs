@@ -4,7 +4,7 @@ import Flite.Projections.Conversion
 import Data.Generics.Uniplate.Direct
 import Data.Generics.Str
 import Data.Maybe (fromMaybe)
-import Data.List (nub)
+import Data.List (nub, findIndex)
 import Data.Set ( isSubsetOf
                 , union
                 , unions
@@ -31,17 +31,53 @@ data Context = CVar String
              | Context :+: Context
          deriving (Show, Eq, Ord)
 
+data CDataDec = CData { cDataName :: String
+                      , cDataArgs :: [String]
+                      , cDataCont :: Context
+                      }
+         deriving (Show, Eq, Ord)
+
 infixr 2 :+:
 infixr 3 :&:
 infix 1 <~
 infixr 2 \/
 infixr 3 &
 
+
+-- replaces the matching association in a list, if not found it's equivalent to id
+replace :: Eq a => [(a, b)] -> (a , b) -> [(a, b)]
+replace [] _ = []
+replace (x:xs) (a, b)
+    | fst x == a = (a, b) : xs
+    | otherwise  = x : replace xs (a, b)
+
+
+-- The prototypes for each data declaration
+prototypes :: [PDataDec] -> [CDataDec]
+prototypes ds = map f ds
+    where f (PData n as e) = CData n as $ fromPTExp e
+
 -- Grab the relevant context for a specific constructor in a Sum-type
 out :: Context -> String -> Context
 out (CSum cs) n = case lookup n cs of
                     Just c  -> c
                     Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
+
+-- Insert context on a constructor into a context on the sum-type
+inC :: String -> Context -> [CDataDec] -> Context
+inC n c ds = case c' of
+                []     -> error $ "Trying to insert an undefined constructor: " ++ show n
+                (x:xs) -> x
+    where c' = [CSum $ replace cs (n, c) | (CSum cs) <- universe b, n `elem` (map fst cs)]
+          b  = mkBot $ cDataCont $ foundIn n ds
+
+-- Find the prototype for the type that includes the given Constructor name
+foundIn :: String -> [CDataDec] -> CDataDec
+foundIn n ds = case pos of
+                   Just i  -> ds !! i --guaranteed to be in bounds since findIndex works on list of same length
+                   Nothing -> error "Trying to insert a constructor into its sum-type when constructor was never defined"
+    where cons d = concat [cs | (CSum cs) <- universe d]
+          pos    = findIndex id $ map (any ((== n) . fst) . cons . cDataCont) ds
 
 -- This is only for when we are representing a context in the form a :+: b,
 -- which is not always the case
