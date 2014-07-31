@@ -169,6 +169,7 @@ mkBot = transform f
 mkAbs :: Context -> Context
 mkAbs = transform f
     where f (CLaz c)   = CLaz (mkBot c)
+          f (CStr c)   = CLaz (mkBot c)
           f (CSum cs)  = CSum $ map mkAbsCs cs
           f c          = c
 {-
