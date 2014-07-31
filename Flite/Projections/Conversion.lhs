@@ -18,7 +18,8 @@ for Projections analysis.
 > import qualified Flite.Descend as D
 > import Data.Maybe (fromMaybe, fromJust) --fromJust used in safe place
 > import Data.List (find, intersect, any)
-> import Data.Generics.Uniplate.Operations
+> import Data.Generics.Uniplate.Direct
+> import Data.Generics.Str
 > import qualified Data.Set as S
 > import qualified Data.Map as M
 
@@ -117,7 +118,16 @@ following form
 >            | Mu String PTExp
 >            | PTEmpty
 >            | LiftT PTExp -- Used only for call-by-value
->               deriving (Show, Eq)
+>               deriving (Show, Eq, Ord)
+
+> instance Uniplate PTExp where
+>   uniplate (PTVar n)   = plate PTVar |- n
+>   uniplate (PTCon n e) = plate PTCon |- n |* e
+>   uniplate (PTSum es)  = plate PTSum ||* es
+>   uniplate (PTProd es) = plate PTProd ||* es
+>   uniplate (Mu n e)    = plate Mu |- n |* e
+>   uniplate (LiftT e)   = plate LiftT |* e
+>   uniplate PTEmpty     = plate PTEmpty
 
 When wanting the 'list' of arguments to a constructor we grab the possible values
 assuming the invariant above holds.

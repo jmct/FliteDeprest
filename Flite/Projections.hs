@@ -85,7 +85,9 @@ approxS phi k ((Con n) `App` as) = undefined --ctLookup n k phi
 approxS phi k ((Fun n) `App` as)
     | isPrim n  = undefined --ctLookup n k phi
     | otherwise = undefined
-approxS phi k (Case e alts) = undefined --ctLookup n k phi
+approxS phi k (Case e alts) = undefined --meets $ 
+    where newVEnvs = map approxSAlts alts
+          approxSAlts = undefined
 approxS phi k (Let bs e) = undefined --ctLookup n k phi
 
 
