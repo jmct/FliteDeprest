@@ -6,7 +6,10 @@ module Flite.Projections
     , evalContxt
     , CEnv
     , (##>)
-    , (#&)
+    , (&#)
+    , (\/#)
+    , meets
+    , approxS
     ) where
 
 import Flite.Syntax
@@ -32,8 +35,15 @@ evalContxt p x = transform f x
 
 -- When Looking for contexts in an environment 
 
-(#&) :: CEnv -> CEnv -> CEnv
-x #& y = M.unionWith (&) x y
+
+(\/#) :: ValEnv -> ValEnv -> ValEnv
+x \/# y = M.unionWith (\/) x y
+
+meets :: [ValEnv] -> ValEnv
+meets = foldr (\/#) M.empty
+
+(&#) :: ValEnv -> ValEnv -> ValEnv
+x &# y = M.unionWith (&) x y
 {-
     where alike = M.intersectionWith (&) x y
           diffX = M.difference x y
