@@ -37,6 +37,10 @@ data CDataDec = CData { cDataName :: String
                       }
          deriving (Show, Eq, Ord)
 
+getBName :: Context -> String
+getBName (CMu s _) = s
+getBName _         = error $ "String to get bound name from a non-recursive context"
+
 infixr 2 :+:
 infixr 3 :&:
 infix 1 <~
@@ -58,8 +62,8 @@ prototypes ds = map f ds
     where f (PData n as e) = CData n as $ fromPTExp e
 
 -- Grab the relevant context for a specific constructor in a Sum-type
-out :: Context -> String -> Context
-out (CSum cs) n = case lookup n cs of
+out :: String -> Context -> Context
+out n (CSum cs) = case lookup n cs of
                     Just c  -> c
                     Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
 
@@ -70,6 +74,12 @@ inC n c ds = case c' of
                 (x:xs) -> x
     where c' = [CSum $ replace cs (n, c) | (CSum cs) <- universe b, n `elem` (map fst cs)]
           b  = mkBot $ cDataCont $ foundIn n ds
+
+
+outProd :: Int -> Context -> Context
+outProd n (CProd as) = as !! n
+outProd _ _          = error $ "You cannot call \"outProd\" on non-CProducts"
+
 
 -- Find the prototype for the type that includes the given Constructor name
 foundIn :: String -> [CDataDec] -> CDataDec

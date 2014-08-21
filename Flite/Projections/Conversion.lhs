@@ -8,6 +8,8 @@ for Projections analysis.
 >                   -- and the types of top-level functions
 >     , PTExp(..)   -- The data-type representing types
 >     , PDataDec(..)
+>     , expandLhs
+>     , mkLhsTExp
 >     ) where
 
 
@@ -238,6 +240,18 @@ Hinze gives us a function that ensures the type expression is in the proper form
 >                            where u'             = n `S.insert` u
 >                                  r'             = M.fromAscList $ zip as $ map (expand' ds u r) $ getTExpList expr
 >                                  PData n as rhs = def
+
+> expandLhs :: [PDataDec] -> PDataDec -> PTExp
+> expandLhs ds d@(PData n as rhs)
+>   | isRecData ds d = Mu n $ expand' ds (S.singleton n) initTEnv lhs
+>   | otherwise      = expand' ds initExSet initTEnv lhs
+>  where lhs = mkLhsTExp d
+
+> mkLhsTExp :: PDataDec -> PTExp
+> mkLhsTExp (PData n as _) 
+>   | null as   = PTCon n $ PTEmpty
+>   | otherwise = PTCon n $ PTProd $ map PTVar as
+
 
 > expandDef :: [PDataDec] -> PDataDec -> PDataDec
 > expandDef ds d@(PData n as rhs)
