@@ -41,6 +41,10 @@ getBName :: Context -> String
 getBName (CMu s _) = s
 getBName _         = error $ "String to get bound name from a non-recursive context"
 
+getCSumNames :: Context -> [String]
+getCSumNames (CSum cs) = map fst cs
+getCSumNames _         = error "You cannot extract constructor names from non-Sum"
+
 infixr 2 :+:
 infixr 3 :&:
 infix 1 <~

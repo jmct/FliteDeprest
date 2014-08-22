@@ -11,7 +11,9 @@ module Flite.Projections
     , meets
     , approxS
     , unfold
-    , foldup
+    , foldUp
+    , getRepeats
+    , lubFold
     ) where
 
 import Flite.Syntax
@@ -104,18 +106,44 @@ unfold' p True cs (CSum bs)
 unfold' p b cs (CProd bs) = CProd $ map (unfold' p b cs) bs
 unfold' p x y z = error "Unfolding malformed context"
 
-foldup :: [CDataDec] -> Context -> Context
-foldup prots (CSum cs) = foldup' temp temp (CSum cs)
-    where cns  = fst $ head cs -- cs always has at least one element
-          temp = cDataCont $ foundIn cns prots
 
---foldup' :: Context -> Context -> Context -> Context
-foldup' p (CVar n) _ = CVar n
-foldup' p (CRec n) g = undefined
+lubFold :: Context -> Context -> Context
+lubFold (CRec _)   c          = c
+lubFold c          (CRec _)   = c
+lubFold (CVar a)   (CVar b)   = CVar b
+lubFold CBot       c          = c
+lubFold c          CBot       = c
+lubFold (CProd []) c          = CProd []
+lubFold c          (CProd []) = CProd []
+lubFold (CSum cs)  (CSum ds)  = if fcs /= fds
+                           then error "Performing lubFold on non-equivalent Sum-Contexts"
+                           else CSum (zipWRange lubFold cs ds)
+    where fcs = map fst cs
+          fds = map fst ds
+lubFold (CProd cs) (CProd ds) = if length cs /= length ds
+                           then error "Performing lubFold on non-equivalent Prod-Contexts"
+                           else CProd $ zipWith lubFold cs ds
+lubFold (CLaz c)   (CLaz d)   = CLaz $ lubFold c d
+lubFold (CStr c)   (CLaz d)   = CLaz $ lubFold c d
+lubFold (CLaz c)   (CStr d)   = CLaz $ lubFold c d
+lubFold (CStr c)   (CStr d)   = CStr $ lubFold c d
+lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
 
-getRepConts :: [String] -> Context -> [Context]
-getRepConts ns (CSum cs) = undefined
 
+foldUp :: Context -> Context
+foldUp x = CMu "foldedUP" $ transform f lubbed
+    where (c:cs) = getRepeats x --Safe because function always returns at least its arg
+          lubbed = foldr lubFold c cs
+          f (CMu _ c')       = c'
+          f y
+            | any (y ==) cs = CRec "foldedUp"
+            | otherwise     = y
+
+-- Only safe on CSums
+-- PROPERTY: head (getRepeats x) == x
+getRepeats :: Context -> [Context]
+getRepeats c = [ CSum c' | (CSum c') <- universe c, cons' == map fst c']
+    where cons' = getCSumNames c
 
 {- This foldup traverses two structures at once...
 foldup' p t (CRec n)   = t

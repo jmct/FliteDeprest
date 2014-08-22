@@ -29,6 +29,11 @@ let t = listps !! 4
 let l = listps !! 0
 let b = listps !! 5
 
+-- Context on Shrubs
+let shrubCont = cDataCont (prots !! 6)
+let ufs = unfold shrubCont
+let uFs = CSum [("Root",CProd [CStr (CMu "Shrub_uf" (CSum [("Void",CProd []),("Fork",CProd [CStr (CSum [("Root",CProd [CStr (CRec "unfolded")])]),CStr CBot,CLaz (CSum [("Root",CProd [CLaz (CRec "unfolded")])])])]))])]
+
 -- Below if for testing the conjunction of lists...
 -- I'm still not sure if removing the 'norm' from lubBHR is
 -- correct
