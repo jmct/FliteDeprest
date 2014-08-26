@@ -131,8 +131,10 @@ lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
 
 
 foldUp :: Context -> Context
-foldUp x = CMu "foldedUP" $ transform f lubbed
-    where (c:cs) = getRepeats x --Safe because function always returns at least its arg
+foldUp x = if rec then res else x
+    where rec    = isRec x
+          res    = CMu "foldedUP" $ transform f lubbed
+          (c:cs) = getRepeats x --Safe because function always returns at least its arg
           lubbed = foldr lubFold c cs
           f (CMu _ c')       = c'
           f y

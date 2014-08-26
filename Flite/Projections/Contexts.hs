@@ -84,6 +84,12 @@ outProd :: Int -> Context -> Context
 outProd n (CProd as) = as !! n
 outProd _ _          = error $ "You cannot call \"outProd\" on non-CProducts"
 
+-- Determine whether a context is recursive
+isRec :: Context -> Bool
+isRec c = if l <= 0
+          then False
+          else True
+  where l = length [() | (CMu _ _) <- universe c]
 
 -- Find the prototype for the type that includes the given Constructor name
 foundIn :: String -> [CDataDec] -> CDataDec
