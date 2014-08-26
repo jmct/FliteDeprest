@@ -166,6 +166,7 @@ allContexts = concatMap allPrimContexts . concatMap allLiftContexts . allVarCont
 allPrimContexts :: Context -> [Context]
 allPrimContexts c = concat . take n . iterate (concatMap primContexts) $ [c]
     where n = 1 + length [() | (CProd []) <- universe c]
+
 primContexts :: Context -> [Context]
 primContexts c = [ f j | (CProd [], f) <- contexts c, j <- [CBot]]
 

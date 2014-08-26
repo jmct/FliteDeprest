@@ -14,6 +14,7 @@ module Flite.Projections
     , foldUp
     , getRepeats
     , lubFold
+    , primTrans
     ) where
 
 import Flite.Syntax
@@ -22,7 +23,13 @@ import Flite.Projections.Contexts
 import Data.Generics.Uniplate.Direct
 import qualified Data.Map.Strict as M
 
-prims = ["+", "-", "*", "/", ">"]
+prims :: [String] --List of primitive operators in F-lite
+prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)"]
+
+primTrans :: ContextTran
+primTrans = M.fromList [ (CBot, CProd [CStr CBot, CStr CBot])
+                       , (CProd [], CProd [CStr (CProd []), CStr (CProd [])])
+                       ]
 
 isPrim n = n `elem` prims
 
@@ -163,6 +170,12 @@ unfoldb' p (CProd as) (CProd bs) = CProd $ zipWith (unfold' p) as bs
 unfoldb' p y z = undefined
 -}
 
+lookUpCT env n c = let res = M.lookup n env >>= M.lookup c
+                   in case res of
+                        Just c' -> c'
+                        Nothing -> mkBot $ argCs n
+
+argCs = undefined
 
 
 approxS :: FunEnv -> Context -> Exp -> ValEnv
@@ -171,15 +184,13 @@ approxS phi k (Int n)      = M.empty
 approxS phi k (Freeze e)   = k ##> approxS phi (dwn k) e
 approxS phi k (Unfreeze e) = approxS phi (CStr k) e
 approxS phi k ((Con n) `App` as)
-    | null as   = undefined
+    | null as   = undefined -- Sec 7.3 M.singleton "ε" k
     | otherwise = conjs $ map (approxS phi $ out n $ unfold k) as
 approxS phi k ((Fun n) `App` as)
-    | isPrim n  = undefined --ctLookup n k phi
-    | otherwise = undefined -- conjs $ map as
+    | isPrim n  = conjs $ zipWith (approxS phi) (children $ primTrans M.! k) as
+    -- | null as   = undefined
+    | otherwise = conjs $ map (approxS phi $ lookUpCT phi n k) as
 approxS phi k (Case e alts) = undefined --meets $ 
     where newVEnvs = map approxSAlts alts
           approxSAlts = undefined
 approxS phi k (Let bs e) = undefined --ctLookup n k phi
-
-
-
