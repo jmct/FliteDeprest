@@ -16,6 +16,8 @@ data Unit = One;
 map f Nil = Nil;
 map f (Cons x xs) = Cons (f x) (map f xs);
 
+addFiveL xs = map ((+) 5) xs;
+
 myFunc t = case t of {
             A a -> A a;
             B a -> B a;
@@ -24,6 +26,8 @@ myFunc t = case t of {
 
 append Nil ys = ys;
 append (Cons x xs) ys = Cons x (append xs ys);
+
+main = addFiveL (Cons 1 (Cons 2 (Cons 3 Nil)));
 }
 
 

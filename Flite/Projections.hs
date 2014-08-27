@@ -177,20 +177,21 @@ lookUpCT env n c = let res = M.lookup n env >>= M.lookup c
 
 argCs = undefined
 
+type CompEnv = ()
 
-approxS :: FunEnv -> Context -> Exp -> ValEnv
-approxS phi k (Var n)      = M.singleton n k
-approxS phi k (Int n)      = M.empty
-approxS phi k (Freeze e)   = k ##> approxS phi (dwn k) e
-approxS phi k (Unfreeze e) = approxS phi (CStr k) e
-approxS phi k ((Con n) `App` as)
+approxS :: CompEnv -> FunEnv -> Context -> Exp -> ValEnv
+approxS env phi k (Var n)      = M.singleton n k
+approxS env phi k (Int n)      = M.empty
+approxS env phi k (Freeze e)   = k ##> approxS env phi (dwn k) e
+approxS env phi k (Unfreeze e) = approxS env phi (CStr k) e
+approxS env phi k ((Con n) `App` as)
     | null as   = undefined -- Sec 7.3 M.singleton "ε" k
-    | otherwise = conjs $ map (approxS phi $ out n $ unfold k) as
-approxS phi k ((Fun n) `App` as)
-    | isPrim n  = conjs $ zipWith (approxS phi) (children $ primTrans M.! k) as
+    | otherwise = conjs $ map (approxS env phi $ out n $ unfold k) as
+approxS env phi k ((Fun n) `App` as)
+    | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans M.! k) as
     -- | null as   = undefined
-    | otherwise = conjs $ map (approxS phi $ lookUpCT phi n k) as
-approxS phi k (Case e alts) = undefined --meets $ 
+    | otherwise = conjs $ map (approxS env phi $ lookUpCT phi n k) as
+approxS env phi k (Case e alts) = undefined --meets $ 
     where newVEnvs = map approxSAlts alts
           approxSAlts = undefined
-approxS phi k (Let bs e) = undefined --ctLookup n k phi
+approxS env phi k (Let bs e) = undefined --ctLookup n k phi

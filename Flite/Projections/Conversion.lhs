@@ -62,12 +62,13 @@ First let's take a normal Flite program and convert it to an equivalent strict
 program with explicit thunks. Start with expressions
 
 > lazifyExp :: Exp -> Exp
+> lazifyExp (Int x)         = Int x
 > lazifyExp (App (Var x) [])= App (Unfreeze (Var x)) []
 > lazifyExp (App f args)    = App f $ map (Freeze . lazifyExp) args
 > lazifyExp (Var x)         = Unfreeze (Var x)
 > lazifyExp (Let bngs exp)  = Let (lazifySnd bngs) (lazifyExp exp)
 > lazifyExp (Case exp alts) = Case (lazifyExp exp) (lazifySnd alts)
-> lazifyExp _               = error "Static analysis does not support this program!"
+> lazifyExp x               = error $ "Static analysis does not support this program!\n" ++ show x
 
 > lazifySnd :: [(a, Exp)] -> [(a, Exp)]
 > lazifySnd xs = [(x, lazifyExp e) | (x, e) <- xs]

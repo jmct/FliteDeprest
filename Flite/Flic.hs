@@ -12,6 +12,7 @@ import Flite.Compile
 import Flite.Pretty
 import Flite.Inline
 import Flite.Descend
+import Flite.Defunct2
 
 (!) :: (Eq a, Show a) => [(a, b)] -> a -> b
 m ! k =
@@ -34,6 +35,7 @@ desugarForDandT p =
              return (identifyFuncs p)
              >>= desugarCase
              >>= desugarEqn
+             >>= return . defunctionalise
 
 desugarProj :: Prog -> Prog
 desugarProj p = snd $ runFresh (desugarForDandT p) "x" 0
