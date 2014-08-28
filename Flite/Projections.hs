@@ -182,10 +182,11 @@ type CompEnv = ()
 approxS :: CompEnv -> FunEnv -> Context -> Exp -> ValEnv
 approxS env phi k (Var n)      = M.singleton n k
 approxS env phi k (Int n)      = M.empty
+approxS env phi k (Con n)      = M.empty
 approxS env phi k (Freeze e)   = k ##> approxS env phi (dwn k) e
 approxS env phi k (Unfreeze e) = approxS env phi (CStr k) e
 approxS env phi k ((Con n) `App` as)
-    | null as   = undefined -- Sec 7.3 M.singleton "ε" k
+    | null as   = M.empty -- Sec 7.3 M.singleton "ε" k
     | otherwise = conjs $ map (approxS env phi $ out n $ unfold k) as
 approxS env phi k ((Fun n) `App` as)
     | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans M.! k) as

@@ -63,6 +63,7 @@ program with explicit thunks. Start with expressions
 
 > lazifyExp :: Exp -> Exp
 > lazifyExp (Int x)         = Int x
+> lazifyExp (Con n)         = Con n
 > lazifyExp (App (Var x) [])= App (Unfreeze (Var x)) []
 > lazifyExp (App f args)    = App f $ map (Freeze . lazifyExp) args
 > lazifyExp (Var x)         = Unfreeze (Var x)

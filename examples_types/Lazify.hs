@@ -16,6 +16,10 @@ data Unit = One;
 map f Nil = Nil;
 map f (Cons x xs) = Cons (f x) (map f xs);
 
+superTrue x = True;
+
+megaAdd y = (+) y y;
+
 addFiveL xs = map ((+) 5) xs;
 
 myFunc t = case t of {
@@ -27,7 +31,10 @@ myFunc t = case t of {
 append Nil ys = ys;
 append (Cons x xs) ys = Cons x (append xs ys);
 
-main = addFiveL (Cons 1 (Cons 2 (Cons 3 Nil)));
+main = case (superTrue 3) of {
+        True -> addFiveL (Cons 1 (Cons 2 (Cons 3 Nil)));
+        False -> Cons (megaAdd 3) Nil
+       };
 }
 
 
