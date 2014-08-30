@@ -86,10 +86,10 @@ outProd _ _          = error $ "You cannot call \"outProd\" on non-CProducts"
 
 -- Determine whether a context is recursive
 isRec :: Context -> Bool
-isRec c = if l <= 0
-          then False
-          else True
-  where l = length [() | (CMu _ _) <- universe c]
+isRec c = if l > 0
+          then True
+          else False
+  where l = length [() | (CRec _) <- universe c]
 
 -- Find the prototype for the type that includes the given Constructor name
 foundIn :: String -> [CDataDec] -> CDataDec
@@ -198,6 +198,7 @@ improper e (CStr c)   = True && improper e c
 improper e (CSum cs)  = and $ map (improper e . snd) cs
 improper e (CProd cs) = or $ map (improper e) cs
 improper e (CMu n c)  = improper ((n, True):e) c
+improper e c          = error $ "What? \n\n" ++ show c
 
 -- Given a context, return the 'Bot' for that 'type'
 -- 'Bad' version (N stands for naive)

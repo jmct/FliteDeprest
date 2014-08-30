@@ -15,9 +15,15 @@ module Flite.Projections
     , getRepeats
     , lubFold
     , primTrans
+    , deletes
+    , kPrime
+    , patToCont
     ) where
 
+import Data.List (foldl')
+import Data.Maybe (catMaybes, fromMaybe)
 import Flite.Syntax
+import Flite.Traversals
 import Flite.Projections.Conversion
 import Flite.Projections.Contexts
 import Data.Generics.Uniplate.Direct
@@ -170,12 +176,35 @@ unfoldb' p (CProd as) (CProd bs) = CProd $ zipWith (unfold' p) as bs
 unfoldb' p y z = undefined
 -}
 
+-- TODO:
+-- This should probably go in its own module somewhere
+deletes :: Ord k => [k] -> M.Map k a -> M.Map k a
+deletes ks m = foldl' (flip M.delete) m ks
+
 lookUpCT env n c = let res = M.lookup n env >>= M.lookup c
                    in case res of
                         Just c' -> c'
                         Nothing -> mkBot $ argCs n
 
 argCs = undefined
+
+
+-- Get the ValEnv for the given variables in an expressions
+kPrime :: [String] -> ValEnv -> ValEnv
+kPrime ns m = M.fromList $ catMaybes $ map f ns
+  where f n = case M.lookup n m of
+                    Just x  -> Just (n, x)
+                    Nothing -> Nothing
+
+-- Form the product from a given pattern
+patToCont :: Pat -> Context -> ValEnv -> Context
+patToCont (App (Con _) as) (CProd cs) m = CProd $ as'
+    where inList          = map getVarC as
+          getVarC (Var x) = M.lookup x m
+          as'             = zipWith (flip fromMaybe) inList cs
+patToCont _                _          _ = error "Illegal pattern in patToCont"
+
+
 
 type CompEnv = ()
 
@@ -194,5 +223,5 @@ approxS env phi k ((Fun n) `App` as)
     | otherwise = conjs $ map (approxS env phi $ lookUpCT phi n k) as
 approxS env phi k (Case e alts) = undefined --meets $ 
     where newVEnvs = map approxSAlts alts
-          approxSAlts = undefined
+          approxSAlts (pat, alt) = approxS env phi k alt
 approxS env phi k (Let bs e) = undefined --ctLookup n k phi
