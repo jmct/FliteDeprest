@@ -18,10 +18,12 @@ module Flite.Projections
     , deletes
     , kPrime
     , patToCont
+    , contToStrat'
     ) where
 
 import Data.List (foldl')
 import Data.Maybe (catMaybes, fromMaybe)
+import Flite.Fresh
 import Flite.Syntax
 import Flite.Traversals
 import Flite.Projections.Conversion
@@ -204,6 +206,37 @@ patToCont (App (Con _) as) (CProd cs) m = CProd $ as'
           as'             = zipWith (flip fromMaybe) inList cs
 patToCont _                _          _ = error "Illegal pattern in patToCont"
 
+
+
+
+
+
+contToStrat' :: Context -> Fresh Exp
+contToStrat' (CStr (CVar _)) = fresh >>= (\x -> return $ Lam [x] (Var x))
+contToStrat' (CLaz (CVar _)) = fresh >>= (\x -> return $ Lam [x] (Con "Unit"))
+contToStrat' (CSum cs)       = fresh >>= (\x -> 
+                               altsToStrat cs >>= (\cs' -> 
+                               return $ Lam [x] (Case (Var x) cs')))
+contToStrat' x               = error $ show x
+
+altsToStrat :: [(String, Context)] -> Fresh [Alt]
+altsToStrat = mapM altToStrat
+
+altToStrat :: (String, Context) -> Fresh Alt
+altToStrat (cName, CBot)     = return $ (App (Con cName) [], Con cName) -- Technically this should be a runtime error
+altToStrat (cName, CProd []) = return $ (App (Con cName) [], Con cName)
+altToStrat (cName, CProd cs) = freshList (length cs) >>= (\fVars -> 
+                               csToFunc fVars cs ([], []) >>= (\cs' ->
+                               return $ (App (Con cName) (map Var fVars), App (Con cName) (snd cs')))) --TODO!!!!!!! snd cs is just a placeholder!!!!!!!!
+altToStrat _                 = error "The Context passed to altToStrat was malformed"
+
+
+csToFunc :: [String] -> [Context] -> ([Exp],[Exp]) -> Fresh ([Exp],[Exp])
+csToFunc []     []            (ps, es) = return (reverse ps, reverse es)
+csToFunc (n:ns) ((CLaz c):cs) (ps, es) = contToStrat' (CLaz c) >>= (\c' -> 
+                                         csToFunc ns cs (ps, (App c' [Var n]) : es))
+csToFunc (n:ns) ((CStr c):cs) (ps, es) = contToStrat' (CStr c) >>= (\c' ->
+                                         csToFunc ns cs ((App (c') [Var n]) : ps, Var n : es))
 
 
 type CompEnv = ()
