@@ -15,6 +15,7 @@ module Flite.Projections
     , getRepeats
     , lubFold
     , primTrans
+    , lookupCT
     , deletes
     , kPrime
     , patToCont
@@ -56,10 +57,13 @@ evalContxt p x = transform f x
 
 
 (\/#) :: ValEnv -> ValEnv -> ValEnv
-x \/# y = M.unionWith (\/) x y
+x \/# y = M.unions [left, both, right]
+  where both  = M.intersectionWith (\/) x y
+        left  = M.intersectionWith (\/) x (M.map mkAbs (M.difference x y))
+        right = M.intersectionWith (\/) y (M.map mkAbs (M.difference y x))
 
 meets :: [ValEnv] -> ValEnv
-meets = foldr (\/#) M.empty
+meets = foldr1 (\/#)
 
 (&#) :: ValEnv -> ValEnv -> ValEnv
 x &# y = M.unionWith (&) x y
@@ -77,14 +81,7 @@ conjs = foldr (&#) M.empty
 
 type ContextTran = M.Map Context Context
 
-type FunEnv = M.Map String ContextTran
-
-ctLookup :: String -> Context -> FunEnv -> Context
-ctLookup n c phi = case M.lookup n phi of
-                       Nothing -> error "Tried looking up undefined function"
-                       Just p -> case M.lookup c p of
-                                     Nothing -> error "Context Transformer not defined for Context"
-                                     Just c' -> c'
+type FunEnv = M.Map (String, Context) Context
 
 type ValEnv = M.Map String Context
 
@@ -97,6 +94,7 @@ dwn _        = error "Trying to use dwn on non-lifted context"
 (##>) :: Context -> ValEnv -> ValEnv
 (CStr _) ##> k  = k
 (CLaz _) ##> k  = M.map (\c -> c \/ mkAbs c) k
+c ##> k = error $ "This is the context: " ++ show c
 
 -- Take a recursive context and return its first unfolding
 unfold :: Context -> Context
@@ -183,12 +181,18 @@ unfoldb' p y z = undefined
 deletes :: Ord k => [k] -> M.Map k a -> M.Map k a
 deletes ks m = foldl' (flip M.delete) m ks
 
-lookUpCT env n c = let res = M.lookup n env >>= M.lookup c
-                   in case res of
-                        Just c' -> c'
-                        Nothing -> mkBot $ argCs n
 
-argCs = undefined
+-- lookup the context resulting from calling a function with the given demand
+lookupCT (env, def) n c = case M.lookup (n, c) env of
+                        Just c' -> c'
+                        Nothing -> def M.! n -- As long as default is initialised for
+                                             -- each function, this is safe.
+
+-- Take a context and return the appropriate version for an empty sequence
+emptySeq :: Context -> Context
+emptySeq CBot       = CBot
+emptySeq (CProd []) = CProd []
+emptySeq _          = error "Context on the empty sequence that isn't bot or id"
 
 
 -- Get the ValEnv for the given variables in an expressions
@@ -238,8 +242,15 @@ csToFunc (n:ns) ((CLaz c):cs) (ps, es) = contToStrat' (CLaz c) >>= (\c' ->
 csToFunc (n:ns) ((CStr c):cs) (ps, es) = contToStrat' (CStr c) >>= (\c' ->
                                          csToFunc ns cs ((App (c') [Var n]) : ps, Var n : es))
 
+lookupPrim ct (CVar _) = case M.lookup (CProd []) ct of
+                            Just c -> c
+                            Nothing -> error $ "This should never happen"
+lookupPrim ct k        = ct M.! k
 
-type CompEnv = ()
+type CompEnv = ([CDataDec], CEnv)
+
+lookupVar :: M.Map String a -> Exp -> Maybe a
+lookupVar m (Var i) = M.lookup i m
 
 approxS :: CompEnv -> FunEnv -> Context -> Exp -> ValEnv
 approxS env phi k (Var n)      = M.singleton n k
@@ -248,13 +259,23 @@ approxS env phi k (Con n)      = M.empty
 approxS env phi k (Freeze e)   = k ##> approxS env phi (dwn k) e
 approxS env phi k (Unfreeze e) = approxS env phi (CStr k) e
 approxS env phi k ((Con n) `App` as)
-    | null as   = M.empty -- Sec 7.3 M.singleton "ε" k
-    | otherwise = conjs $ map (approxS env phi $ out n $ unfold k) as
+    | null as   = M.singleton "ε" $ emptySeq k
+    | otherwise = conjs $ zipWith (approxS env phi) (children $ out n $ unfold k) as
 approxS env phi k ((Fun n) `App` as)
-    | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans M.! k) as
-    -- | null as   = undefined
-    | otherwise = conjs $ map (approxS env phi $ lookUpCT phi n k) as
-approxS env phi k (Case e alts) = undefined --meets $ 
-    where newVEnvs = map approxSAlts alts
-          approxSAlts (pat, alt) = approxS env phi k alt
-approxS env phi k (Let bs e) = undefined --ctLookup n k phi
+    | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans `lookupPrim` k) as
+    | null as   = M.singleton "ε" $ emptySeq k
+    | otherwise = conjs $ zipWith (approxS env phi) (children $ lookupCT (phi, snd env) n k) as
+approxS env phi k (Case e alts) = meets newVEnvs
+    where newVEnvs        = map (mergeAlt . approxSAlts) alts
+          mergeAlt (a, b) = a &# (approxS env phi (foldUp b) e)
+          approxSAlts (pat@(App (Con c) as), alt) = (p', k')
+            where p' = deletes (freeVars pat) p
+                  p  = approxS env phi k alt
+                  CProd cs = mkAbs $ out c k
+                  prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
+                  k' = if null as
+                       then foldUp $ inC c (CProd []) $ fst env
+                       else foldUp $ inC c prod $ fst env
+approxS env phi k (Let bs e) = p' &# approxS env phi k' e
+    where p' = approxS env phi k e
+          k' = undefined

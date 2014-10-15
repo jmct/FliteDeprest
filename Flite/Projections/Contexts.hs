@@ -43,7 +43,8 @@ getBName _         = error $ "String to get bound name from a non-recursive cont
 
 getCSumNames :: Context -> [String]
 getCSumNames (CSum cs) = map fst cs
-getCSumNames _         = error "You cannot extract constructor names from non-Sum"
+getCSumNames (CMu _ (CSum cs)) = map fst cs
+getCSumNames c         = error $ "attempt to extract cNames from" ++ show c
 
 infixr 2 :+:
 infixr 3 :&:
@@ -67,9 +68,13 @@ prototypes ds = map f ds
 
 -- Grab the relevant context for a specific constructor in a Sum-type
 out :: String -> Context -> Context
-out n (CSum cs) = case lookup n cs of
+out n (CSum cs)         = case lookup n cs of
                     Just c  -> c
                     Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
+out n (CMu _ (CSum cs)) = case lookup n cs of
+                    Just c  -> c
+                    Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
+out n c  = error $ "This is the context: " ++ show c ++ " This is the Cons: " ++ show n
 
 -- Insert context on a constructor into a context on the sum-type
 inC :: String -> Context -> [CDataDec] -> Context
