@@ -23,7 +23,7 @@ module Flite.Projections
     ) where
 
 import Data.List (foldl')
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, fromJust)
 import Flite.Fresh
 import Flite.Syntax
 import Flite.Traversals
@@ -247,6 +247,14 @@ lookupPrim ct (CVar _) = case M.lookup (CProd []) ct of
                             Nothing -> error $ "This should never happen"
 lookupPrim ct k        = ct M.! k
 
+prot :: [CDataDec] -> String -> Context
+prot decs n = c
+  where
+    p = cDataCont $ foundIn n decs
+    c = fromJust $ lookup n $ concat [ cs | CSum cs <- universe p, n `elem` (map fst cs)]
+    -- fromJust is okay since the there not being an constructor of that name is
+    -- an error anyway in 'foundIn'
+
 type CompEnv = ([CDataDec], CEnv)
 
 lookupVar :: M.Map String a -> Exp -> Maybe a
@@ -271,7 +279,7 @@ approxS env phi k (Case e alts) = meets newVEnvs
           approxSAlts (pat@(App (Con c) as), alt) = (p', k')
             where p' = deletes (freeVars pat) p
                   p  = approxS env phi k alt
-                  CProd cs = mkAbs $ out c k
+                  CProd cs = mkAbs $ prot (fst env) c
                   prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
                   k' = if null as
                        then foldUp $ inC c (CProd []) $ fst env
