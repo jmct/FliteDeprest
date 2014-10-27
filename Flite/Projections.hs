@@ -20,11 +20,13 @@ module Flite.Projections
     , kPrime
     , patToCont
     , contToStrat'
+    , mapToProd
     ) where
 
 import Data.List (foldl')
 import Data.Maybe (catMaybes, fromMaybe, fromJust)
 import Flite.Fresh
+import Flite.TypeChecker2 (retType)
 import Flite.Syntax
 import Flite.Traversals
 import Flite.Projections.Conversion
@@ -32,10 +34,18 @@ import Flite.Projections.Contexts
 import Data.Generics.Uniplate.Direct
 import qualified Data.Map.Strict as M
 
+projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
+projAnalysis (prog, dataTypes, funTypes) = undefined
+
+analyseFunc :: CompEnv -> (Decl, Type_exp) -> FunEnv
+analyseFunc env (Func n as rhs, t) = M.fromList res
+    where retT = retType t
+          res = undefined
+
 prims :: [String] --List of primitive operators in F-lite
 prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)"]
 
-primTrans :: ContextTran
+primTrans :: M.Map Context Context
 primTrans = M.fromList [ (CBot, CProd [CStr CBot, CStr CBot])
                        , (CProd [], CProd [CStr (CProd []), CStr (CProd [])])
                        ]
@@ -79,7 +89,6 @@ conjs :: [ValEnv] -> ValEnv
 conjs = foldr (&#) M.empty
 
 
-type ContextTran = M.Map Context Context
 
 type FunEnv = M.Map (String, Context) Context
 
@@ -257,6 +266,14 @@ prot decs n = c
 
 type CompEnv = ([CDataDec], CEnv)
 
+mapToProd :: Decl -> ValEnv -> Context
+mapToProd (Func n as _) m = CProd res
+  where
+    l1  = catMaybes $ map (lookupVar m) as
+    res = if length l1 == length as
+          then l1
+          else error $ "Argument mismatch in mapToProd for function " ++ n
+
 lookupVar :: M.Map String a -> Exp -> Maybe a
 lookupVar m (Var i) = M.lookup i m
 
@@ -284,6 +301,10 @@ approxS env phi k (Case e alts) = meets newVEnvs
                   k' = if null as
                        then foldUp $ inC c (CProd []) $ fst env
                        else foldUp $ inC c prod $ fst env
-approxS env phi k (Let bs e) = p' &# approxS env phi k' e
-    where p' = approxS env phi k e
-          k' = undefined
+approxS env phi k (Let [(b, e1)] e) = res
+    where p   = approxS env phi k e
+          p'  = b `M.delete` p
+          res  = case b `M.lookup` p of
+                      Just v  -> p' &# approxS env phi v e1
+                      Nothing -> p'
+approxS env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
