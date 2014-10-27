@@ -281,6 +281,7 @@ expanded, and lazified data-types; and the types of the top-level functions
 
 > convertProg :: Prog -> (Prog, [PDataDec], [(Id, Type_exp)])
 > convertProg decs = (lFuncs, lData, ts)
->   where lFuncs   = lazifyFuncs $ desugarProj decs
->         (ts, ds) = tcheck decs
+>   where desuged  = desugarProj decs
+>         lFuncs   = lazifyFuncs desuged
+>         (ts, ds) = tcheck $ desuged ++ [Data i as cs | Data i as cs <- decs]
 >         lData    = lazifyData $ expandAll $ convertDT $ ds
