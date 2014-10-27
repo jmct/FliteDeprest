@@ -37,6 +37,12 @@ data CDataDec = CData { cDataName :: String
                       }
          deriving (Show, Eq, Ord)
 
+lookupByName :: String -> [CDataDec] -> Maybe CDataDec
+lookupByName s []     = Nothing
+lookupByName s (c@(CData n _ _):xs)
+    | n == s    = Just c
+    | otherwise = lookupByName s xs
+
 getBName :: Context -> String
 getBName (CMu s _) = s
 getBName _         = error $ "String to get bound name from a non-recursive context"
