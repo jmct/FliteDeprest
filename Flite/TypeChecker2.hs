@@ -33,6 +33,10 @@ tcross t1 t2 = TCONS "(,)" [t1,t2]
 tlist ::  Type_exp -> Type_exp
 tlist t = TCONS "List" [t]
 
+retType :: Type_exp -> Type_exp
+retType (TCONS "TArrow" [arg, res]) = retType res
+retType x = x
+
 tOutlist :: [String] -> [Type_exp] -> Type_exp         
 tOutlist ns ts = TCONS "" [tOutlist'' (ns', ts') | (ns',ts')
                                                    <- zip (map tOutlist' ns) ts]
