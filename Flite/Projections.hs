@@ -21,16 +21,19 @@ module Flite.Projections
     , patToCont
     , contToStrat'
     , mapToProd
+    , pConts
     ) where
 
 import Data.List (foldl')
 import Data.Maybe (catMaybes, fromMaybe, fromJust)
 import Flite.Fresh
-import Flite.TypeChecker2 (retType)
+import Flite.TypeChecker2
+import Flite.TypeUtils
 import Flite.Syntax
 import Flite.Traversals
 import Flite.Projections.Conversion
 import Flite.Projections.Contexts
+import Flite.Projections.NiceType
 import Data.Generics.Uniplate.Direct
 import qualified Data.Map.Strict as M
 
@@ -39,8 +42,19 @@ projAnalysis (prog, dataTypes, funTypes) = undefined
 
 analyseFunc :: CompEnv -> (Decl, Type_exp) -> FunEnv
 analyseFunc env (Func n as rhs, t) = M.fromList res
-    where retT = retType t
+    where retT = retNiceType $ toNiceType t
+          getDecl (NCons n ars) = lookupByName n $ fst env
           res = undefined
+
+pConts :: [CDataDec] -> NiceType -> [Context]
+pConts env (NCons n ars) = case lookupByName n env of
+                             Nothing -> if length ars == 0
+                                        then [CBot, CProd []]
+                                        else error err
+                             Just c  -> undefined
+  where 
+    err = "Result type of function is not a defined type! This shouldn't happen"
+         
 
 prims :: [String] --List of primitive operators in F-lite
 prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)"]

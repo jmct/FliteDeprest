@@ -1,6 +1,7 @@
 module Flite.Pretty where
 import Flite.Syntax
 import Flite.PrettyLib
+import Flite.TypeUtils
 import Data.List
 import Data.Maybe (fromJust)
 	
@@ -60,16 +61,6 @@ showWith b m (TCONS tcn ts)  =
         
 brack :: String -> String
 brack s = "("++s++")"
-
-varMap :: Type_exp -> [([Int],String)]
-varMap t = zip (nub $ varsOf t) varNames
-  where
-  varNames = map (:[]) lett ++ concatMap (\n -> [c : show n | c <- lett]) [1..]
-  lett = ['a'..'z']
-
-varsOf :: Type_exp -> [[Int]]
-varsOf (TVAR tvn) = [tvn]
-varsOf (TCONS tcn ts) = concatMap varsOf ts 
 
 --}
 showfuntypes (fts,decls) =  (map showfuntype fts , decls )

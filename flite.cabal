@@ -39,7 +39,8 @@ Executable flite-pure
                     Flite.Matching, Flite.Parse, Flite.ParseLib, Flite.Predex, Flite.Pretty,
                     Flite.RedCompile, Flite.RedFrontend, Flite.RedSyntax, Flite.Strictness
                     Flite.State, Flite.Strictify, Flite.Syntax, Flite.Traversals, Flite.Writer,
-                    Flite.Writer, Flite.WriterState, Flite.WorkerWrapper
+                    Flite.Writer, Flite.WriterState, Flite.WorkerWrapper, Flite.TypeUtils,
+                    Flite.Projections.NiceType
     if flag(pure)
         Build-Depends: base >= 3 && < 5,
                        array >= 0 && < 1, containers >= 0 && < 1
@@ -63,7 +64,8 @@ Executable flite
                         Flite.RedSyntax, Flite.State, Flite.Strictify, Flite.Syntax, 
                         Flite.Traversals, Flite.Writer, Flite.Writer, Flite.WriterState,
                         Flite.Parsec.Parse, Flite.Parsec.Flite, Flite.Parsec.Prelude,
-                        Flite.Dependency, Flite.IntInfer, Flite.Strictness, Flite.WorkerWrapper
+                        Flite.Dependency, Flite.IntInfer, Flite.Strictness, Flite.WorkerWrapper,
+                        Flite.TypeUtils, Flite.Projections.NiceType
     
 Library
     Build-Depends:   base >= 3 && < 5,
@@ -81,4 +83,5 @@ Library
                     Flite.InterpFrontend, Flite.LambdaLift, Flite.Predex, 
                     Flite.RedCompile, Flite.RedFrontend, Flite.RedSyntax,
                     Flite.State, Flite.Strictify, Flite.WriterState,
-                    Flite.Dependency, Flite.IntInfer, Flite.Strictness, Flite.WorkerWrapper
+                    Flite.Dependency, Flite.IntInfer, Flite.Strictness, Flite.WorkerWrapper,
+                    Flite.TypeUtils, Flite.Projections.NiceType
