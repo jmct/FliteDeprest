@@ -95,12 +95,17 @@ outProd :: Int -> Context -> Context
 outProd n (CProd as) = as !! n
 outProd _ _          = error $ "You cannot call \"outProd\" on non-CProducts"
 
--- Determine whether a context is recursive
-isRec :: Context -> Bool
-isRec c = if l > 0
-          then True
-          else False
-  where l = length [() | (CRec _) <- universe c]
+-- Because this function is only used in foldUp we don't have to be as general
+-- in fact, we can't be as general because it's possible to have a recursive
+-- context as part of a non-recursive one. Like a list argument to a pair
+isRec :: Context -> [CDataDec] -> Bool
+isRec (CMu _ _) _  = True
+isRec (CSum cs) ds = isMu dec
+  where
+    (CData _ _ dec) = foundIn (fst $ head cs) ds
+    isMu (CMu _ _)  = True
+    isMu _          = False
+    
 
 -- Find the prototype for the type that includes the given Constructor name
 foundIn :: String -> [CDataDec] -> CDataDec

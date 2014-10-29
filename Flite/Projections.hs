@@ -22,9 +22,11 @@ module Flite.Projections
     , contToStrat'
     , mapToProd
     , pConts
+    , suffixCount
     ) where
 
-import Data.List (foldl')
+import GHC.Exts (sortWith) -- Why isn't this in Data.List???
+import Data.List (foldl', isPrefixOf)
 import Data.Maybe (catMaybes, fromMaybe, fromJust)
 import Flite.Fresh
 import Flite.TypeChecker2
@@ -73,7 +75,7 @@ type CEnv = M.Map String Context
 evalContxt :: CEnv -> Context -> Context
 evalContxt p x = transform f x
     where f (CVar n)   = case M.lookup n p of
-                            Nothing -> error "Tried to evaluate context without proper substitution"
+                            Nothing -> CVar n
                             Just c -> c
           f c          = c
 
@@ -136,10 +138,11 @@ unfold' p b cs CBot       = CBot
 unfold' p False cs (CSum bs) = CMu (getBName p ++ "_uf") $ CSum $ mapRange (unfold' p True cs') bs
   where cs' = map fst bs
 unfold' p True cs (CSum bs)
-    | cs == cs' = CRec "unfolded"
+    | cs == cs' = CRec $ getBName p ++ "_uf"
     | otherwise = CSum $ mapRange (unfold' p True cs) bs
   where cs' = map fst bs
 unfold' p b cs (CProd bs) = CProd $ map (unfold' p b cs) bs
+unfold' p b cs (CMu n c)  = CMu n c
 unfold' p x y z = error "Unfolding malformed context"
 
 
@@ -166,38 +169,47 @@ lubFold (CStr c)   (CStr d)   = CStr $ lubFold c d
 lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
 
 
-foldUp :: Context -> Context
-foldUp x = if rec then res else x
-    where rec    = isRec x
-          res    = CMu "foldedUP" $ transform f lubbed
-          (c:cs) = getRepeats x --Safe because function always returns at least its arg
+foldUp :: [CDataDec] -> Context -> Context
+foldUp env x = if rec then res else x
+    where rec    = isRec x env
+          name   = last $ sortWith (suffixCount "_uf") [s | CMu s _ <- universe x]
+          name'  = reverse $ drop 3 $ reverse name
+          res    = CMu name' $ transform f lubbed
+          (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
           lubbed = foldr lubFold c cs
           f (CMu _ c')       = c'
           f y
-            | any (y ==) cs = CRec "foldedUp"
+            | any (y ==) cs = CRec name'
             | otherwise     = y
 
 -- Only safe on CSums
 -- PROPERTY: head (getRepeats x) == x
-getRepeats :: Context -> [Context]
-getRepeats c = [ CSum c' | (CSum c') <- universe c, cons' == map fst c']
+getRepeats :: String -> Context -> [Context]
+getRepeats n c = [ CSum c' | (CMu n' (CSum c')) <- universe c, n == n', cons' == map fst c']
     where cons' = getCSumNames c
 
-{- This foldup traverses two structures at once...
-foldup' p t (CRec n)   = t
-foldup' p t (CVar n)   = CVar n
-foldup' p t CBot       = CBot
-foldup' p t (CProd cs) = undefined
+{-
+-- Count number of times a suffix appears at the end of a string
+suffixCount :: String -> String -> Int
+suffixCount suf str = length res
+  where
+    sufLen = length suf
+    pre = reverse suf
+    res = takeWhile (pre `isPrefixOf`) $ iterate (drop sufLen) $ reverse str
 
-unfoldb' :: Context -> Context -> Context -> Context
-unfoldb' x y z = z
-unfoldb' p (CVar _) (CVar m)     = CVar m
-unfoldb' p (CRec _) (CRec m)     = unfold' p (head $ children p) 
-unfoldb' p CBot     CBot         = CBot
-unfoldb' p (CSum as) (CSum bs)   = CMu (getBName p ++ "_uf") $ CSum $ zipWRange (unfold' p) as bs
-unfoldb' p (CProd as) (CProd bs) = CProd $ zipWith (unfold' p) as bs
-unfoldb' p y z = undefined
+Alternate definition of suffixCount
 -}
+
+suffixCount :: String -> String -> Int
+suffixCount suf str = go 0 revS
+  where
+    revS = reverse str
+    pre  = reverse suf
+    l    = length pre
+    go i s
+       | pre `isPrefixOf` s = go (i + 1) $ drop l s
+       | otherwise          = i
+
 
 -- TODO:
 -- This should probably go in its own module somewhere
@@ -306,15 +318,15 @@ approxS env phi k ((Fun n) `App` as)
     | otherwise = conjs $ zipWith (approxS env phi) (children $ lookupCT (phi, snd env) n k) as
 approxS env phi k (Case e alts) = meets newVEnvs
     where newVEnvs        = map (mergeAlt . approxSAlts) alts
-          mergeAlt (a, b) = a &# (approxS env phi (foldUp b) e)
+          mergeAlt (a, b) = a &# (approxS env phi (foldUp (fst env) b) e)
           approxSAlts (pat@(App (Con c) as), alt) = (p', k')
             where p' = deletes (freeVars pat) p
                   p  = approxS env phi k alt
                   CProd cs = mkAbs $ prot (fst env) c
                   prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
                   k' = if null as
-                       then foldUp $ inC c (CProd []) $ fst env
-                       else foldUp $ inC c prod $ fst env
+                       then foldUp (fst env) $ inC c (CProd []) $ fst env
+                       else foldUp (fst env) $ inC c prod $ fst env
 approxS env phi k (Let [(b, e1)] e) = res
     where p   = approxS env phi k e
           p'  = b `M.delete` p
