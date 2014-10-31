@@ -21,17 +21,21 @@ instance Pretty Decl where
 						<+> pretty r
 						
 instance Pretty Exp where
-	pretty (App x ys) 	= hsep (prettyArg2 x : map prettyArg ys)
-	pretty (Case x as)	= nest 2 (text "case" </> prettyArg x)
-						</> nest 2 (text "of" </> prettyBlock prettyAlt as)
-	pretty (Let bs y)	= nest 2 (text "let" </> prettyBlock prettyBind bs)
-						</> nest 2 (text "in" </> prettyArg y)
-	pretty (Lam vs x)	= nest 2 (text "\\" <> (hsep . map text $ vs) </> text "->" </> pretty x)
-	pretty (Var v)		= text v
-	pretty (Fun f)		= text f
-	pretty (Con c)		= text c
-	pretty (Int i)		= int i
-	pretty (Bottom)		= text "Undef"
+    pretty (App (Fun f) [x,y])
+      | isPrimId f      = parens $ hsep [pretty x, unBracket f, pretty y]
+    pretty (App x ys)   = hsep (prettyArg2 x : map prettyArg ys)
+    pretty (Case x as)	= nest 2 (text "case" </> prettyArg x)
+    					</> nest 2 (text "of" </> prettyBlock prettyAlt as)
+    pretty (Let bs y)	= nest 2 (text "let" </> prettyBlock prettyBind bs)
+    					</> nest 2 (text "in" </> prettyArg y)
+    pretty (Lam vs x)	= nest 2 (text "\\" <> (hsep . map text $ vs) </> text "->" </> pretty x)
+    pretty (Var v)		= text v
+    pretty (Fun f)		= text f
+    pretty (Con c)		= text c
+    pretty (Int i)		= int i
+    pretty (Bottom)		= text "Undef"
+
+unBracket s = text [x | x <- s, x /= '(', x /= ')']
 
 ---Print types
 instance Show Type_exp where
