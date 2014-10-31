@@ -1,4 +1,4 @@
-module Flite.Flic (flic, flicM) where
+module Flite.Flic (flic, flicM, desugarProj) where
 
 import Flite.Syntax
 import Flite.Traversals
@@ -12,6 +12,7 @@ import Flite.Compile
 import Flite.Pretty
 import Flite.Inline
 import Flite.Descend
+import Flite.Defunct2
 
 (!) :: (Eq a, Show a) => [(a, b)] -> a -> b
 m ! k =
@@ -19,6 +20,28 @@ m ! k =
     Nothing -> error ("Key " ++ show k ++ " not in environment")
     Just v  -> v
 
+desugarForG :: Prog -> Fresh Prog
+desugarForG p =
+             return (identifyFuncs p)
+             >>= desugarEqn
+             >>= desugarCase
+             >>= onExpM freshen
+             >>= inlineLinearLet
+             >>= inlineSimpleLet
+             >>= return . joinApps
+
+desugarForDandT :: Prog -> Fresh Prog
+desugarForDandT p =
+             return (identifyFuncs p)
+             >>= desugarCase
+             >>= desugarEqn
+             >>= return . defunctionalise
+
+desugarProj :: Prog -> Prog
+desugarProj p = snd $ runFresh (desugarForDandT p) "x" 0
+
+util2 :: Prog -> Prog
+util2 p = snd $ runFresh (return (identifyFuncs p) >>= desugarCase) "x" 0
 
 flic :: Prog -> String
 flic p = snd (runFresh (flicM p) "v_" 0)

@@ -1,6 +1,7 @@
 module Flite.Pretty where
 import Flite.Syntax
 import Flite.PrettyLib
+import Flite.TypeUtils
 import Data.List
 import Data.Maybe (fromJust)
 	
@@ -34,12 +35,14 @@ instance Pretty Exp where
     pretty (Con c)		= text c
     pretty (Int i)		= int i
     pretty (Bottom)		= text "Undef"
+    pretty (Unfreeze e)		= text "Unfreeze " <> pretty e
+    pretty (Freeze e)		= text "Freeze " <> pretty e
 
 unBracket s = text [x | x <- s, x /= '(', x /= ')']
 
 ---Print types
-instance Show Type_exp where
-  show t =  showWith id (varMap t) t
+--instance Show Type_exp where
+ -- show t =  showWith id (varMap t) t
 
 showWith :: (String -> String) -> [([Int],String)] -> Type_exp -> String
 showWith b m (TVAR tvn)      = (fromJust $ lookup tvn m) 
@@ -54,6 +57,7 @@ showWith b m (TCONS tcn ts)  =
      --             where [t1,t2] = ts 
      "::"     ->  showWith id m t1 ++ " :: " ++ showWith id m t2  ++ "\n"
                   where [t1,t2] = ts            
+     "Int"    ->  "Integer"
      _        ->  if ts==[] then tcn 
                   else tcn ++ " " ++ (concat $ intersperse " " (map (showWith brack m) ts))
      
@@ -61,16 +65,6 @@ showWith b m (TCONS tcn ts)  =
         
 brack :: String -> String
 brack s = "("++s++")"
-
-varMap :: Type_exp -> [([Int],String)]
-varMap t = zip (nub $ varsOf t) varNames
-  where
-  varNames = map (:[]) lett ++ concatMap (\n -> [c : show n | c <- lett]) [1..]
-  lett = ['a'..'z']
-
-varsOf :: Type_exp -> [[Int]]
-varsOf (TVAR tvn) = [tvn]
-varsOf (TCONS tcn ts) = concatMap varsOf ts 
 
 --}
 showfuntypes (fts,decls) =  (map showfuntype fts , decls )

@@ -1,0 +1,50 @@
+let tfst (a, _, _) = a
+let tsnd (_, a, _) = a
+let tthd (_, _, a) = a
+:m Flite.Parse Flite.Syntax Flite.Projections Flite.TypeChecker2 Flite.Defunct2 Flite.Pretty Flite.Flic Flite.Projections.Contexts Data.List Data.Generics.Uniplate.Operations Data.Map Flite.Projections Flite.LambdaLift
+parsed <- parseProgFile "examples_types/Lazify.hs"
+let converted = convertProg parsed
+let dTypes = tsnd converted
+let prots = prototypes dTypes
+let listps = allPrinContexts $ fromPTExp $ pDataRhs $ dTypes !! 4
+let getC (CMu n c) = c
+let y1 = CVar "y1"
+let y1 = CVar "y1"
+let y2 = CVar "y2"
+let top = y1 :+: y1 :&: y2 :+: y2
+
+-- Contexts on Bools
+let boolps = allPrinContexts $ fromPTExp $ pDataRhs $ dTypes !! 2
+let boolT = boolps !! 2
+let boolF = boolps !! 1
+let boolTop = boolps !! 0
+let boolBot = boolps !! 3
+
+-- Contexts on lists
+let ht = last listps
+let ph = listps !! 3
+let pl = listps !! 1
+let h = listps !! 2
+let t = listps !! 4
+let l = listps !! 0
+let b = listps !! 5
+
+-- Context on Shrubs
+let shrubCont = cDataCont (prots !! 6)
+let ufs = unfold shrubCont
+let uFs = CSum [("Root",CProd [CStr (CMu "Shrub_uf" (CSum [("Void",CProd []),("Fork",CProd [CStr (CSum [("Root",CProd [CStr (CRec "unfolded")])]),CStr CBot,CLaz (CSum [("Root",CProd [CLaz (CRec "unfolded")])])])]))])]
+
+-- Below if for testing the conjunction of lists...
+-- I'm still not sure if removing the 'norm' from lubBHR is
+-- correct
+let b1 = getC b
+let h1 = getC h
+let br = subRec (CTVar "a" (y1)) b1
+let hr = subRec (CTVar "a" (y2)) h1
+let bhr = br & hr
+let lubBHR = lubA "a" bhr
+
+-- Below stuff for testing Context Transformers and Environments
+let myValEnv1 = Data.Map.fromList [("a", CStr (CVar "y"))]
+let myValEnv2 = Data.Map.fromList [("w", CLaz b), ("y", CLaz b), ("a", CLaz CBot)]
+let myValEnv3 = Data.Map.fromList [("w", CStr b), ("y", CStr b)]

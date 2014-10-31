@@ -29,6 +29,8 @@ instance Descend Exp where
   descendM f (PrimApp p es) = return (PrimApp p) `ap` mapM f es
   descendM f (PRSApp p es) = return (PRSApp p) `ap` mapM f es
   descendM f (Lam vs e) = return (Lam vs) `ap` f e
+  descendM f (Unfreeze e) = return (Unfreeze) `ap` f e
+  descendM f (Freeze e) = return (Freeze) `ap` f e
   descendM f e = return e
 
 subst :: Exp -> Id -> Exp -> Exp

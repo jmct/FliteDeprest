@@ -8,8 +8,9 @@ import Flite.Inline
 import Flite.Compile
 import Flite.RedCompile
 import Flite.Desugar
+import Flite.PrettyLib
 import Data.List
-import System
+import System.Environment
 import System.IO
 import System.Console.GetOpt
 
@@ -61,7 +62,7 @@ run flags fileName =
      case filter isDisjoint flags of
        [] -> print (interp inlineFlag p)
        [Desugar] ->
-         putStrLn $ pretty $ desugar inlineFlag p
+         putStrLn $ prettyProg $ desugar inlineFlag p
        [CompileToC] -> putStrLn $ compile inlineFlag p
        [CompileToRed slen alen napps nluts nregs] ->
         do let sa = StrictnessAnalysis `elem` flags

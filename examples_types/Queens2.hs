@@ -3,10 +3,18 @@
 data Bool    = True | False ;
 data List a  = Cons a (List a)|Nil; 
 
+data Shrub   = Root Node;
+data Node    = Void | Fork Shrub Int Shrub;
+
+data Test a  = A a | B a a | C;
+
+
 tail (Cons x xs) = xs;
 
+const a b = a;
+
 one p Nil = Nil;
-one p (Cons x xs) = case p x of { True -> Cons x Nil ; False -> one p xs };
+one p (Cons x xs) = const (case p x of { True -> Cons x Nil ; False -> one p xs }) 0;
 
 map f Nil = Nil;
 map f (Cons x xs) = Cons (f x) (map f xs);
@@ -52,6 +60,12 @@ solve n mask =
   case (==) n 0 of {
     True -> Cons Nil Nil;
     False -> concatMap (sol ((-) n 1)) (fill mask);
+  };
+
+foo n =
+  case (<=) n 5 of {
+    True -> B True False;
+    False -> C;
   };
 
 sol n row = map (Cons row) (solve n (next row));

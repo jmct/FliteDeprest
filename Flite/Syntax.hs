@@ -1,5 +1,8 @@
 module Flite.Syntax where
 
+import Data.Generics.Uniplate.Direct
+import Data.Generics.Str
+
 type Prog = [Decl]
 
 data Decl = Func { funcName :: Id
@@ -26,15 +29,39 @@ data Exp = App Exp [Exp]
          | Ctr Id Int Int
          | Lam [Id] Exp
 
-           --The next two are for Strictness Analysis
-         | Val TwoPoint
-         | List FourPoint
-
            -- For speculative evaluation of primitive redexes.
          | PRSApp Id [Exp]   -- guaranteed PRS evaluable (static analysis)
          | PrimApp Id [Exp]  -- candidate for PRS (dynamic testing)
          | Prim Id
+           
+           -- For Projections we need the following extensions to the AST
+         | Freeze Exp
+         | Unfreeze Exp
   deriving (Eq,Show)
+
+instance Uniplate Exp where
+    uniplate (App e es)  = plate App |* e ||* es
+    uniplate (Case e as) = (cs, \str -> let (e':ss) = strList str
+                                        in Case e' (zip ps ss))
+        where cs = listStr (e:map snd as)
+              ps = map fst as
+    uniplate (Let bs e)  = (cs, \str -> let (e':ss) = strList str
+                                        in Let (zip is ss) e')
+        where cs = listStr (e:map snd bs)
+              is = map fst bs
+    uniplate (Var id)       = plate Var |- id
+    uniplate (Con id)       = plate Con |- id
+    uniplate (Fun id)       = plate Fun |- id
+    uniplate (Int n)        = plate Int |- n
+    uniplate (Bottom)       = plate Bottom
+    uniplate (Alts is n)    = plate Alts |- is |- n
+    uniplate (Ctr i n t)    = plate Ctr |- i |- n |- t
+    uniplate (Lam is e)     = plate Lam |- is |* e
+    uniplate (PRSApp i es)  = plate PRSApp |- i ||* es
+    uniplate (PrimApp i es) = plate PrimApp |- i ||* es
+    uniplate (Prim i)       = plate Prim |- i
+    uniplate (Freeze e)     = plate Freeze |* e
+    uniplate (Unfreeze e)   = plate Unfreeze |* e
 
 type Pat = Exp
 
@@ -48,7 +75,9 @@ type App = [Exp]
 type Tvname = [Int]
 data Type_exp = TVAR Tvname
               | TCONS [Char] [Type_exp]
-              deriving (Eq)
+                -- For Projections we need to be able to lift a type
+              | Lift Type_exp
+              deriving (Eq, Show)
 
 data TypeExp =   TEVar String
                 |TECons String [TypeExp]
@@ -58,19 +87,15 @@ data TypeExp =   TEVar String
 
 
 --Stricness Domain Values
-data TwoPoint = T
-              | B
-            deriving (Eq, Show)
+data FlatD = T
+           | B
+        deriving (Eq, Show)
 
-data FourPoint = FullyStrict
-               | SpineStrict
-               | InfList
-               | BList
-            deriving (Eq, Show)
-
--- Strictness of each function in each argument
-type Strictness = [(Id, [Bool])]
-
+data ListD = FullyStrict
+           | SpineStrict
+           | InfList
+           | BList
+        deriving (Eq, Show)
 
 -- Primitive functions
 

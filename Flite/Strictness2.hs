@@ -1,31 +1,53 @@
-module Flite.Strictness
-  ( Strictness           -- type Strictness = [(Id, [Bool])]
-  , strictnessAnalysis   -- :: Prog -> Strictness
-  ) where
+module Flite.Strictness2 where
 
 import Flite.Syntax
 import Flite.Traversals
 import Flite.Descend
 import Flite.Dependency
 
+type Strictness = [(Id, [Either FlatD ListD])]
+
+type ABinding = (Id, AExp)
+
+type AAlt = (AExp, AExp)
+
+data AExp = AApp AExp [AExp]
+          | ACase AExp [AAlt]
+          | ALet [ABinding] AExp
+          | AVar Id
+          | ACon Id
+          | AFun Id
+          | Flat FlatD
+          | FourPoint ListD
+  deriving (Eq,Show)
 
 -- Lift an expression to the abstract domain
-abstr :: Exp -> Exp
-abstr (Var v) = Var v
-abstr (Fun f) = Fun f
-abstr (Int n) = Val Top
-abstr (Con c) = Val Top
-abstr (App (Con c) es) = mayTerminate -- TODO check the constructor tag to decide what to do
+abstr :: Exp -> AExp
+abstr (Var v) = AVar v
+abstr (Fun f) = AFun f
+abstr (Int n) = Flat T
+abstr (Con c)
+  | c == "Cons" || c == "Nil" = ACon c
+  | otherwise                 = Flat T
+abstr (App (Con c) es)
+  | c == "Cons" = AApp (ACon c) $ map abstr es
+  | otherwise   = Flat T
 abstr (App (Fun f) [e0, e1])
   | isPrimId f = conj (abstr e0) (abstr e1)
-abstr (App e es) = App (abstr e) (map abstr es)
-abstr (Case e alts) = conj e (abstrAlts alts)
-abstr (Let bs e) = Let [(v, abstr e) | (v, e) <- bs] (abstr e)
+abstr (App e es) = AApp (abstr e) (map abstr es)
+abstr (Case e alts) = conj (abstr e) (abstrAlts alts)
+abstr (Let bs e) = ALet [(v, abstr e) | (v, e) <- bs] (abstr e)
 
-abstrAlts :: [Alt] -> Exp
+abstrAlts :: [Alt] -> AExp
 abstrAlts alts = disjList (map abstr es)
-  where es = [ substMany e (zip (repeat mayTerminate) (patVars p))
+  where es = [ substMany e (zip (repeat (Var "mayTerm")) (patVars p))
              | (p, e) <- alts ]
+
+conj x y = AApp (AVar "conj") [x, y]
+disjList x = AVar "disjList"
+mayTerminate = undefined
+
+{-
 
 -- Evaluate an abstract expression
 eval :: Strictness -> Exp -> Exp
@@ -190,3 +212,5 @@ strictnessAnalysis =
   . onExp inlineLet
   . onExp splitLet
   . onExp abstr
+ 
+-}
