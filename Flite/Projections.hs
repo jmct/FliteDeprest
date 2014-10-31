@@ -22,7 +22,10 @@ module Flite.Projections
     , contToStrat'
     , mapToProd
     , pConts
+    , getCont
     , suffixCount
+    , projAnalysis
+    , analyseCallGroup
     ) where
 
 import GHC.Exts (sortWith) -- Why isn't this in Data.List???
@@ -33,30 +36,64 @@ import Flite.TypeChecker2
 import Flite.TypeUtils
 import Flite.Syntax
 import Flite.Traversals
+import Flite.Dependency
 import Flite.Projections.Conversion
 import Flite.Projections.Contexts
 import Flite.Projections.NiceType
 import Data.Generics.Uniplate.Direct
 import qualified Data.Map.Strict as M
 
-projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
-projAnalysis (prog, dataTypes, funTypes) = undefined
+--projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
+projAnalysis (prog, dataTypes, funTypes) = callGs --foldl f M.empty callGs
+  where
+    f      = analyseCallGroup (prototypes dataTypes)
+    callGs = (fmap . fmap) makeTriple (callGroups prog)
+    recs   = isSelfRec $ callGraph prog
+    makeTriple f@(Func n _ _) = (f, fromJust lookT, fromJust lookR)
+      where
+        lookT = lookup n funTypes       
+        lookR = lookup n recs       
 
-analyseFunc :: CompEnv -> (Decl, Type_exp) -> FunEnv
-analyseFunc env (Func n as rhs, t) = M.fromList res
-    where retT = retNiceType $ toNiceType t
-          getDecl (NCons n ars) = lookupByName n $ fst env
-          res = undefined
+
+analyseCallGroup :: [CDataDec] -> FunEnv -> [(Decl, Type_exp, Bool)] -> FunEnv
+analyseCallGroup prots phi [(Func n as rhs, t, isR)] 
+    | isR       = phi `M.union` (fixMap runRec phi)
+    | otherwise = phi `M.union` (M.fromList $ map runA conts)
+    where (aT, retT) = retNiceType $ toNiceType t
+          def1       = map (mkAbs . CLaz . getCont prots) aT
+          def2       = M.singleton n $ CProd $ map (mkBot . CStr . getCont prots) aT
+          runA k     = ((n, blankContext k), mapToProd as def1 $ approxS (prots, def2) phi k rhs)
+          runIt p k  = ((n, blankContext k), mapToProd as def1 $ approxS (prots, def2) p k rhs)
+          conts      = pConts prots retT
+          getDecl (NCons n ars) = lookupByName n $ prots
+          runRec p   = M.fromList $ map (runIt p) conts
+analyseCallGroup _ _ _ = error "Must implement mutual recursion!"
+
+fixMap :: (FunEnv -> FunEnv) -> FunEnv -> FunEnv
+fixMap f p = let p' = f p in
+                 case p' == p of
+                   True  -> p
+                   False -> fixMap f p'
 
 pConts :: [CDataDec] -> NiceType -> [Context]
-pConts env (NCons n ars) = case lookupByName n env of
-                             Nothing -> if length ars == 0
-                                        then [CBot, CProd []]
-                                        else error err
-                             Just c  -> undefined
+pConts env = allPrinContexts . getCont env
+
+getCont :: [CDataDec] -> NiceType -> Context
+getCont env (NCons n ars) = case lookupByName n env of
+                              Nothing -> if length ars == 0
+                                         then CProd []
+                                         else error err
+                              Just (CData n as rhs) -> let p = zip as $ map (getCont env) ars
+                                                       in evalContxt p rhs 
   where 
     err = "Result type of function is not a defined type! This shouldn't happen"
-         
+getCont env (NVar a) = CVar a
+
+mapToProd :: [Exp] -> [Context] -> ValEnv -> Context
+mapToProd as ds m = CProd res
+  where
+    l1  = map (lookupVar m) as
+    res = zipWith fromMaybe ds l1
 
 prims :: [String] --List of primitive operators in F-lite
 prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)"]
@@ -72,9 +109,9 @@ type CEnv = M.Map String Context
 
 -- Evaluate a given context with the given environment
 -- This is for substituting a polymorphic context variable with its context
-evalContxt :: CEnv -> Context -> Context
+evalContxt :: [(String, Context)] -> Context -> Context
 evalContxt p x = transform f x
-    where f (CVar n)   = case M.lookup n p of
+    where f (CVar n)   = case lookup n p of
                             Nothing -> CVar n
                             Just c -> c
           f c          = c
@@ -172,7 +209,8 @@ lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
 foldUp :: [CDataDec] -> Context -> Context
 foldUp env x = if rec then res else x
     where rec    = isRec x env
-          name   = last $ sortWith (suffixCount "_uf") [s | CMu s _ <- universe x]
+          name   = last $ sortWith (suffixCount "_uf") recN
+          recN   = [s | CMu s _ <- universe x] ++ [s | CRec s <- universe x]
           name'  = reverse $ drop 3 $ reverse name
           res    = CMu name' $ transform f lubbed
           (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
@@ -220,7 +258,11 @@ deletes ks m = foldl' (flip M.delete) m ks
 -- lookup the context resulting from calling a function with the given demand
 lookupCT (env, def) n c = case M.lookup (n, c) env of
                         Just c' -> c'
-                        Nothing -> def M.! n -- As long as default is initialised for
+                        Nothing -> case M.lookup n def of
+                                     Just v -> v
+                                     Nothing -> error $ "Trying to look up " ++ show n ++ " in lookupCT\n" ++
+                                                        "The context is: " ++ show c
+                                             --def M.! n -- As long as default is initialised for
                                              -- each function, this is safe.
 
 -- Take a context and return the appropriate version for an empty sequence
@@ -242,7 +284,7 @@ patToCont :: Pat -> Context -> ValEnv -> Context
 patToCont (App (Con _) as) (CProd cs) m = CProd $ as'
     where inList          = map getVarC as
           getVarC (Var x) = M.lookup x m
-          as'             = zipWith (flip fromMaybe) inList cs
+          as'             = zipWith fromMaybe cs inList
 patToCont _                _          _ = error "Illegal pattern in patToCont"
 
 
@@ -292,14 +334,6 @@ prot decs n = c
 
 type CompEnv = ([CDataDec], CEnv)
 
-mapToProd :: Decl -> ValEnv -> Context
-mapToProd (Func n as _) m = CProd res
-  where
-    l1  = catMaybes $ map (lookupVar m) as
-    res = if length l1 == length as
-          then l1
-          else error $ "Argument mismatch in mapToProd for function " ++ n
-
 lookupVar :: M.Map String a -> Exp -> Maybe a
 lookupVar m (Var i) = M.lookup i m
 
@@ -315,10 +349,10 @@ approxS env phi k ((Con n) `App` as)
 approxS env phi k ((Fun n) `App` as)
     | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans `lookupPrim` k) as
     | null as   = M.singleton "ε" $ emptySeq k
-    | otherwise = conjs $ zipWith (approxS env phi) (children $ lookupCT (phi, snd env) n k) as
+    | otherwise = conjs $ zipWith (approxS env phi) (children $ lookupCT (phi, snd env) n (blankContext k)) as
 approxS env phi k (Case e alts) = meets newVEnvs
     where newVEnvs        = map (mergeAlt . approxSAlts) alts
-          mergeAlt (a, b) = a &# (approxS env phi (foldUp (fst env) b) e)
+          mergeAlt (a, b) = a &# (approxS env phi b e)
           approxSAlts (pat@(App (Con c) as), alt) = (p', k')
             where p' = deletes (freeVars pat) p
                   p  = approxS env phi k alt

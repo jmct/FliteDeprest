@@ -7,6 +7,7 @@ module Flite.Dependency
   , closure      -- :: DepGraph -> DepGraph
   , callGroups   -- :: [Decl] -> [[Decl]]
   , letGroups    -- :: [Binding] -> [[Binding]]
+  , isSelfRec    -- :: DepGraph -> [(String, Bool)]
   ) where
 
 import Flite.Syntax
@@ -41,6 +42,12 @@ callGraph p = (zip fs cs)
   where
     fs = map funcName p
     cs = map (nub . calls . funcRhs) p
+
+-- Given a DepGraph, does each function call itself?
+isSelfRec :: DepGraph -> [(String, Bool)]
+isSelfRec cg = map f cg
+  where
+    f (n, fs) = (n, n `elem` fs)
 
 -- Strongly connected components, in dependency order
 components :: DepGraph -> [[Id]]

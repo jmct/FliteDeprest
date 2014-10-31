@@ -37,6 +37,14 @@ data CDataDec = CData { cDataName :: String
                       }
          deriving (Show, Eq, Ord)
 
+blankContext :: Context -> Context
+blankContext = transform f
+  where
+    f (CVar _)  = CVar ""
+    f (CMu _ c) = CMu "" c
+    f (CRec _)  = CRec ""
+    f c         = c
+
 lookupByName :: String -> [CDataDec] -> Maybe CDataDec
 lookupByName s []     = Nothing
 lookupByName s (c@(CData n _ _):xs)
