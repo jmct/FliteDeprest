@@ -74,6 +74,11 @@ program with explicit thunks. Start with expressions
 > lazifySnd :: [(a, Exp)] -> [(a, Exp)]
 > lazifySnd xs = [(x, lazifyExp e) | (x, e) <- xs]
 
+> cleanNullApps :: Exp -> Exp
+> cleanNullApps = transform f
+>   where f (App e []) = e
+>         f e          = e
+
 > cleanFreeze :: Exp -> Exp
 > cleanFreeze = transform f
 >   where f (Freeze (Unfreeze e)) = e -- See Hinze Dis. pg 36 and Sec A.4.1
@@ -82,7 +87,7 @@ program with explicit thunks. Start with expressions
 Then we can lazify an entire program
 
 > lazifyFuncs :: Prog -> Prog
-> lazifyFuncs fs = [Func name args (cleanFreeze $ lazifyExp rhs) | Func name args rhs <- fs]
+> lazifyFuncs fs = [Func name args (cleanFreeze $ lazifyExp $ cleanNullApps rhs) | Func name args rhs <- fs]
 
 
 Now we run into some confusion. Flite has two types representing type expressions:

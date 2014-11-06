@@ -37,6 +37,17 @@ data CDataDec = CData { cDataName :: String
                       }
          deriving (Show, Eq, Ord)
 
+-- See if the contexted represents a 'lifted type'
+isLifted :: Context -> Bool
+isLifted (CLaz _) = True
+isLifted (CStr _) = True
+isLifted _        = False
+
+getLift :: Context -> Context -> Context
+getLift (CLaz _) = CLaz
+getLift (CStr _) = CStr
+getLift _        = error "Trying to use 'getLift' on non-lifted context"
+
 blankContext :: Context -> Context
 blankContext = transform f
   where

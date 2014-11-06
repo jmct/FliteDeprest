@@ -2,30 +2,7 @@ module Flite.Projections
     (
       module Flite.Projections.Conversion
     , module Flite.Projections.Contexts
-    -- , module Flite.Projections.Projections
-    , evalContxt
-    , CEnv
-    , (##>)
-    , (&#)
-    , (\/#)
-    , meets
-    , approxS
-    , unfold
-    , foldUp
-    , getRepeats
-    , lubFold
-    , primTrans
-    , lookupCT
-    , deletes
-    , kPrime
-    , patToCont
-    , contToStrat'
-    , mapToProd
-    , pConts
-    , getCont
-    , suffixCount
-    , projAnalysis
-    , analyseCallGroup
+    , module Flite.Projections
     ) where
 
 import GHC.Exts (sortWith) -- Why isn't this in Data.List???
@@ -41,38 +18,52 @@ import Flite.Projections.Conversion
 import Flite.Projections.Contexts
 import Flite.Projections.NiceType
 import Data.Generics.Uniplate.Direct
+import Flite.Writer
+import Control.Applicative
+import Control.Monad
 import qualified Data.Map.Strict as M
+import Debug.Trace
 
 --projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
-projAnalysis (prog, dataTypes, funTypes) = callGs --foldl f M.empty callGs
+projAnalysis (prog, dataTypes, funTypes) = foldl f M.empty (take (l - 1) callGs)
   where
     f      = analyseCallGroup (prototypes dataTypes)
     callGs = (fmap . fmap) makeTriple (callGroups prog)
+    l      = length callGs
     recs   = isSelfRec $ callGraph prog
-    makeTriple f@(Func n _ _) = (f, fromJust lookT, fromJust lookR)
+    ts    = mapRange (retNiceType . toNiceType) funTypes
+    tMap = M.fromList ts
+    makeTriple f@(Func n _ _) = (f, tMap, fromJust lookR)
       where
-        lookT = lookup n funTypes       
         lookR = lookup n recs       
 
+type FTypes = M.Map String ([NiceType],NiceType)
 
-analyseCallGroup :: [CDataDec] -> FunEnv -> [(Decl, Type_exp, Bool)] -> FunEnv
-analyseCallGroup prots phi [(Func n as rhs, t, isR)] 
+analyseCallGroup :: [CDataDec] -> FunEnv -> [(Decl, FTypes, Bool)] -> FunEnv
+analyseCallGroup prots phi [(f@(Func n _ _), tMap, isR)] 
+    | trace ("analysing " ++ n) False = undefined
     | isR       = phi `M.union` (fixMap runRec phi)
-    | otherwise = phi `M.union` (M.fromList $ map runA conts)
-    where (aT, retT) = retNiceType $ toNiceType t
-          def1       = map (mkAbs . CLaz . getCont prots) aT
+    | otherwise = phi `M.union` (M.fromList $ map (runIt phi) conts)
+    where (aT, retT) = tMap M.! n
           def2       = M.singleton n $ CProd $ map (mkBot . CStr . getCont prots) aT
-          runA k     = ((n, blankContext k), mapToProd as def1 $ approxS (prots, def2) phi k rhs)
-          runIt p k  = ((n, blankContext k), mapToProd as def1 $ approxS (prots, def2) p k rhs)
+          runIt p k  = analyseFunc (f, tMap) (prots, (def2, tMap)) p k
           conts      = pConts prots retT
           getDecl (NCons n ars) = lookupByName n $ prots
           runRec p   = M.fromList $ map (runIt p) conts
 analyseCallGroup _ _ _ = error "Must implement mutual recursion!"
 
+-- Perform one pass of the analysis on a function with one demand context 'k'.
+analyseFunc :: (Decl, FTypes) -> CompEnv -> FunEnv -> Context -> ((String, Context), Context)
+analyseFunc (Func n as rhs, tMap) env phi k = ((n, k'), mapToProd as defAbs analysisRes)
+  where k'           = blankContext k
+        (aT, retT)   = tMap M.! n
+        defAbs       = map (mkAbs . CLaz . getCont (fst env)) aT
+        analysisRes  = approxS env phi k rhs
+
 fixMap :: (FunEnv -> FunEnv) -> FunEnv -> FunEnv
-fixMap f p = let p' = f p in
+fixMap f p = let p' = M.union p (f p) in
                  case p' == p of
-                   True  -> p
+                   True  -> p'
                    False -> fixMap f p'
 
 pConts :: [CDataDec] -> NiceType -> [Context]
@@ -99,9 +90,14 @@ prims :: [String] --List of primitive operators in F-lite
 prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)"]
 
 primTrans :: M.Map Context Context
-primTrans = M.fromList [ (CBot, CProd [CStr CBot, CStr CBot])
-                       , (CProd [], CProd [CStr (CProd []), CStr (CProd [])])
-                       ]
+primTrans = M.fromList
+  [ (CBot,                                        CProd [CStr CBot,       CStr CBot])
+  , (CProd [],                                    CProd [CStr (CProd []), CStr (CProd [])])
+  , (CSum [("True",CProd []),("False",CProd [])], CProd [CStr (CProd []), CStr (CProd [])])
+  , (CSum [("True", CBot),   ("False",CProd [])], CProd [CStr (CBot),     CStr (CBot)])
+  , (CSum [("True",CProd []),("False",CBot)],     CProd [CStr (CBot),     CStr (CBot)])
+  , (CSum [("True", CBot),   ("False",CBot)],     CProd [CStr (CBot),     CStr (CBot)])
+  ]
 
 isPrim n = n `elem` prims
 
@@ -162,7 +158,8 @@ c ##> k = error $ "This is the context: " ++ show c
 unfold :: Context -> Context
 unfold (CSum c)  = CSum c
 unfold p@(CMu _ (CSum ds)) = CSum $ mapRange (unfold' p False [""]) ds
-unfold _         = error $ "Trying to unfold two contexts of different type"
+unfold c         = c --error $ "Trying to unfold two contexts of different type\n" ++
+                     --      show c
 
 --         Givenprot -> given -> res Context
 unfold' :: Context -> Bool -> [String] -> Context -> Context
@@ -256,14 +253,105 @@ deletes ks m = foldl' (flip M.delete) m ks
 
 
 -- lookup the context resulting from calling a function with the given demand
-lookupCT (env, def) n c = case M.lookup (n, c) env of
-                        Just c' -> c'
-                        Nothing -> case M.lookup n def of
-                                     Just v -> v
-                                     Nothing -> error $ "Trying to look up " ++ show n ++ " in lookupCT\n" ++
-                                                        "The context is: " ++ show c
+-- Key point here is that the context that we are looking up 'c' may not necessarily
+-- be isomorphic to the to context that was inserted in the FunEnv. To deal with this
+-- we have to make sure that all of the strings in the context are blanked out 
+-- `blankContext` and we have to make sure the context is as general as possible
+-- (Defintion 7.6 in Hinze's work)
+lookupCT :: (FunEnv, CompEnv) -> String -> Context -> Context
+lookupCT (phi, env) n c =
+    case M.lookup (n, blankContext c) phi of
+        Just k' -> k'
+        Nothing -> case M.lookup (n, k) phi of
+                        Just k'' -> evalContxt varMap k''
+                        Nothing  -> case M.lookup (n, evalToBot k) phi of
+                                        Just j -> evalContxt (mapRange mkBot varMap) j
+                                        Nothing -> case M.lookup (n, k2) phi of
+                                                    Just v -> v
+                                                    Nothing -> case M.lookup n def of
+                                                                     Just v -> v
+                                                                     Nothing -> error $ "Trying to look up " ++ show (n, c) ++ " in lookupCT\n"
                                              --def M.! n -- As long as default is initialised for
                                              -- each function, this is safe.
+  where
+    def          = fst $ snd env
+    retCont      = getCont (fst env) $ snd $ case M.lookup n (snd $ snd env) of { Just x -> x; Nothing -> error "here" }
+    prots        = fst env
+    k            = blankContext $ c'
+    (varMap, c') = getGenCont retCont c
+    k2           = blankContext $ getFullBot retCont c
+
+evalToBot :: Context -> Context
+evalToBot = transform f
+  where f (CVar _) = CBot
+        f c        = c
+-- Get un-instantiate a context back to a context with context-variables using a template
+-- TODO: re-write this as a Writer monad/applicative
+--            template
+getGenCont :: Context -> Context -> ([(String, Context)], Context)
+getGenCont x y = runWriter $ getGenCont' x y
+
+getGenCont' :: Context -> Context -> Writer (String, Context) Context
+getGenCont' (CVar n)    c          = W [(n, c)] (CVar n)
+getGenCont' (CRec _)    (CRec n)   = pure $ CRec n
+getGenCont' (CSum xs)   (CSum ys)  = do
+    let xs' = map snd xs
+        ys' = map snd ys
+        con = map fst ys
+    zs <- zipWithM getGenCont' xs' ys'
+    return $ CSum $ zip con zs
+getGenCont' (CProd xs)  (CProd ys) = CProd <$> zipWithM getGenCont' xs ys
+getGenCont' (CMu _ x)   (CMu n y)  = CMu n <$> getGenCont' x y
+getGenCont' x           (CStr y)
+    | isLifted x = CStr <$> getGenCont' (dwn x) y
+    | otherwise  = error "Template is not matching a lifted context (This should never happen)"
+getGenCont' x           (CLaz y)
+    | isLifted x = CLaz <$> getGenCont' (dwn x) y
+    | otherwise  = error "Template is not matching a lifted context (This should never happen)"
+getGenCont' x           (CProd []) = pure $ CProd []
+getGenCont' x           CBot       = pure CBot
+
+-- Sometimes the demand on a parameterised type will have 'CBot' in place of a context variable.
+-- This function gives you the equivalent 'expanded' context
+--            template   scrutinee
+getFullBot :: Context -> Context -> Context
+getFullBot c CBot
+    | c /= CBot && c /= CProd [] = mkBot c
+getFullBot (CVar _) (CVar s) = CVar s    
+getFullBot (CRec _) (CRec r) = CRec r
+getFullBot (CProd xs) (CProd ys) = CProd $ zipWith getFullBot xs ys
+getFullBot (CSum xs)  (CSum ys)  = CSum $ zipWRange getFullBot xs ys
+getFullBot (CMu _ x)  (CMu r y)  = CMu r $ getFullBot x y
+getFullBot x          y
+    | isLifted x && isLifted y = getLift y $ getFullBot (dwn x) (dwn y)
+    | otherwise                = error ":&:'s and :+:'s should be removed by this point"
+
+
+{-
+getGenCont :: Context -> Context -> ([(String, Context)], Context)
+getGenCont = go []
+  where
+    go m (CVar n)    c          = ((n, c):m, CVar n)
+    go m (CRec _)   (CRec n)    = (m, CRec n)
+    go m (CSum xs)  (CSum ys)   = (m', CSum cs)
+      where
+        cons = map fst ys
+        xs'  = map snd xs
+        ys'  = map snd ys
+        zs   = zipWith (go m) xs' ys'
+        cs   = zip cons $ map snd zs
+        m'   = concatMap fst zs
+    go m (CProd xs) (CProd ys)  = (m', CProd cs)
+      where
+        zs = zipWith (go m) xs ys
+        cs = map snd zs
+        m' = concatMap fst zs
+    go m (CStr x)   (CStr y)    = (m, CStr y)
+    go m  CBot       CBot       = (m, CBot)
+    go m (CProd []) (CProd [])  = (m, CProd [])
+-}
+
+
 
 -- Take a context and return the appropriate version for an empty sequence
 emptySeq :: Context -> Context
@@ -322,7 +410,9 @@ csToFunc (n:ns) ((CStr c):cs) (ps, es) = contToStrat' (CStr c) >>= (\c' ->
 lookupPrim ct (CVar _) = case M.lookup (CProd []) ct of
                             Just c -> c
                             Nothing -> error $ "This should never happen"
-lookupPrim ct k        = ct M.! k
+lookupPrim ct k        = case M.lookup k ct of
+                            Just c -> c
+                            Nothing -> error $ "Primitive lookup failed?! This is the context: " ++ show k
 
 prot :: [CDataDec] -> String -> Context
 prot decs n = c
@@ -332,7 +422,9 @@ prot decs n = c
     -- fromJust is okay since the there not being an constructor of that name is
     -- an error anyway in 'foundIn'
 
-type CompEnv = ([CDataDec], CEnv)
+-- We carry around the prototype contexts and a tuple that holds the default context
+-- transformers and the prototype demands for each function.
+type CompEnv = ([CDataDec], (CEnv, FTypes))
 
 lookupVar :: M.Map String a -> Exp -> Maybe a
 lookupVar m (Var i) = M.lookup i m
@@ -349,7 +441,7 @@ approxS env phi k ((Con n) `App` as)
 approxS env phi k ((Fun n) `App` as)
     | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans `lookupPrim` k) as
     | null as   = M.singleton "ε" $ emptySeq k
-    | otherwise = conjs $ zipWith (approxS env phi) (children $ lookupCT (phi, snd env) n (blankContext k)) as
+    | otherwise = conjs $ zipWith (approxS env phi) (children $ lookupCT (phi, env) n k) as
 approxS env phi k (Case e alts) = meets newVEnvs
     where newVEnvs        = map (mergeAlt . approxSAlts) alts
           mergeAlt (a, b) = a &# (approxS env phi b e)
@@ -359,12 +451,13 @@ approxS env phi k (Case e alts) = meets newVEnvs
                   CProd cs = mkAbs $ prot (fst env) c
                   prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
                   k' = if null as
-                       then foldUp (fst env) $ inC c (CProd []) $ fst env
+                       then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
                        else foldUp (fst env) $ inC c prod $ fst env
 approxS env phi k (Let [(b, e1)] e) = res
     where p   = approxS env phi k e
           p'  = b `M.delete` p
           res  = case b `M.lookup` p of
-                      Just v  -> p' &# approxS env phi v e1
+                      Just v  -> p' &# (v ##> approxS env phi (dwn v) e1)
                       Nothing -> p'
 approxS env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
+approxS env phit k e         = error $ "Non-exhaustive: " ++ show e
