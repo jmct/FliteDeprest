@@ -25,32 +25,45 @@ import qualified Data.Map.Strict as M
 import Debug.Trace
 
 --projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
-projAnalysis (prog, dataTypes, funTypes) = foldl f M.empty (take (l - 1) callGs)
+projAnalysis (prog, dataTypes, funTypes) = foldl' f M.empty (take (l - 1) callGs)
   where
-    f      = analyseCallGroup (prototypes dataTypes)
-    callGs = (fmap . fmap) makeTriple (callGroups prog)
+    f      = analyseCallGroup (prototypes dataTypes) tMap
+    callGs = (fmap . fmap) makeTup (callGroups prog)
     l      = length callGs
     recs   = isSelfRec $ callGraph prog
     ts    = mapRange (retNiceType . toNiceType) funTypes
     tMap = M.fromList ts
-    makeTriple f@(Func n _ _) = (f, tMap, fromJust lookR)
+    makeTup dec@(Func n _ _) = (dec, fromJust lookR)
       where
-        lookR = lookup n recs       
+        lookR = lookup n recs
 
 type FTypes = M.Map String ([NiceType],NiceType)
 
-analyseCallGroup :: [CDataDec] -> FunEnv -> [(Decl, FTypes, Bool)] -> FunEnv
-analyseCallGroup prots phi [(f@(Func n _ _), tMap, isR)] 
+analyseCallGroup :: [CDataDec] -> FTypes -> FunEnv -> [(Decl, Bool)] -> FunEnv
+analyseCallGroup prots tMap phi [(f@(Func n _ _), isR)]
     | trace ("analysing " ++ n) False = undefined
     | isR       = phi `M.union` (fixMap runRec phi)
     | otherwise = phi `M.union` (M.fromList $ map (runIt phi) conts)
-    where (aT, retT) = tMap M.! n
-          def2       = M.singleton n $ CProd $ map (mkBot . CStr . getCont prots) aT
-          runIt p k  = analyseFunc (f, tMap) (prots, (def2, tMap)) p k
-          conts      = pConts prots retT
-          getDecl (NCons n ars) = lookupByName n $ prots
-          runRec p   = M.fromList $ map (runIt p) conts
-analyseCallGroup _ _ _ = error "Must implement mutual recursion!"
+  where 
+    (aT, retT) = tMap M.! n
+    def2       = botDef prots f aT
+    runIt p k  = analyseFunc (f, tMap) (prots, (def2, tMap)) p k
+    conts      = pConts prots retT
+    getDecl (NCons n ars) = lookupByName n $ prots
+    runRec p   = M.fromList $ map (runIt p) conts
+analyseCallGroup prots tMap phi decs
+    | trace ("analysing " ++ concat (map (funcName . fst) decs)) False = undefined
+analyseCallGroup prots tMap phi decs = phi `M.union` (fixMap (go decs') phi)
+  where
+    decs'       = map fst decs
+    ts          = map ((tMap M.!) . funcName) decs' -- types for each function
+    defs        = M.unions $ zipWith (\f t -> botDef prots f $ fst t) decs' ts  -- the default context transformers
+    go fs p     = M.unions $ map (onEach p) fs
+    onEach p f  = p'
+      where
+        (aT, retT) = tMap M.! (funcName f)
+        conts      = pConts prots retT
+        p'         = p `M.union` (M.fromList $ map (analyseFunc (f, tMap) (prots, (defs, tMap)) p) conts)
 
 -- Perform one pass of the analysis on a function with one demand context 'k'.
 analyseFunc :: (Decl, FTypes) -> CompEnv -> FunEnv -> Context -> ((String, Context), Context)
@@ -60,11 +73,22 @@ analyseFunc (Func n as rhs, tMap) env phi k = ((n, k'), mapToProd as defAbs anal
         defAbs       = map (mkAbs . CLaz . getCont (fst env)) aT
         analysisRes  = approxS env phi k rhs
 
+-- Run a computation on a FunEnv until a fixed point is reached
 fixMap :: (FunEnv -> FunEnv) -> FunEnv -> FunEnv
+fixMap f p
+    | trace ("One iter\n") False = undefined
 fixMap f p = let p' = M.union p (f p) in
                  case p' == p of
                    True  -> p'
                    False -> fixMap f p'
+
+
+-- Create the default context transformer for a function
+-- Used as the first iteration when finding a fixed point
+botDef :: [CDataDec] -> Decl -> [NiceType] -> M.Map String Context
+botDef ps fun = M.singleton (funcName fun) . CProd . map mkStrBot
+  where
+    mkStrBot = mkBot . CStr . getCont ps
 
 pConts :: [CDataDec] -> NiceType -> [Context]
 pConts env = allPrinContexts . getCont env
@@ -201,6 +225,7 @@ lubFold (CStr c)   (CLaz d)   = CLaz $ lubFold c d
 lubFold (CLaz c)   (CStr d)   = CLaz $ lubFold c d
 lubFold (CStr c)   (CStr d)   = CStr $ lubFold c d
 lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
+lubFold c          c1         = error $ "Non-exhaustive lubfold on " ++ show c ++ " " ++ show c1
 
 
 foldUp :: [CDataDec] -> Context -> Context

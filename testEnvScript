@@ -2,7 +2,7 @@ let tfst (a, _, _) = a
 let tsnd (_, a, _) = a
 let tthd (_, _, a) = a
 :m Flite.Parse Flite.Syntax Flite.Projections Flite.TypeChecker2 Flite.Defunct2 Flite.Pretty Flite.Flic Flite.Projections.Contexts Data.List Data.Generics.Uniplate.Operations Data.Map Flite.Projections Flite.LambdaLift Flite.Dependency Flite.Projections.NiceType
-parsed <- parseProgFile "examples_types/Lazify.hs"
+parsed <- parseProgFile "examples_types/Queens2.hs"
 let converted = convertProg parsed
 let dTypes = tsnd converted
 let prots = prototypes dTypes
@@ -57,13 +57,13 @@ let myCEnv = Data.Map.fromList [("append", CProd [CStr b, CStr b]),("map^(+)", C
 let recs = isSelfRec $ callGraph $ tfst converted
 let ts = mapRange (retNiceType . toNiceType) $ tthd converted
 let tMap = Data.Map.fromList ts
-let makeTrip f@(Func n _ _) = let (Just lookR) = Prelude.lookup n recs in (f, tMap, lookR)
-let callGs = (fmap . fmap) makeTrip (callGroups $ tfst converted)
+let makeTup f@(Func n _ _) = let (Just lookR) = Prelude.lookup n recs in (f, lookR)
+let callGs = (fmap . fmap) makeTup (callGroups $ tfst converted)
 
-let i1 = analyseCallGroup prots Data.Map.empty (callGs !! 0)
-let i2 = analyseCallGroup prots i1 (callGs !! 1)
-let i3 = analyseCallGroup prots i2 (callGs !! 2)
-let i4 = analyseCallGroup prots i3 (callGs !! 3)
-let i5 = analyseCallGroup prots i4 (callGs !! 4)
-let i6 = analyseCallGroup prots i5 (callGs !! 5)
-let i7 = analyseCallGroup prots i6 (callGs !! 6)
+let i1 = analyseCallGroup prots tMap Data.Map.empty (callGs !! 0)
+let i2 = analyseCallGroup prots tMap i1 (callGs !! 1)
+let i3 = analyseCallGroup prots tMap i2 (callGs !! 2)
+let i4 = analyseCallGroup prots tMap i3 (callGs !! 3)
+let i5 = analyseCallGroup prots tMap i4 (callGs !! 4)
+let i6 = analyseCallGroup prots tMap i5 (callGs !! 5)
+let i7 = analyseCallGroup prots tMap i6 (callGs !! 6)
