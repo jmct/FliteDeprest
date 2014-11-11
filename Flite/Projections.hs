@@ -182,8 +182,8 @@ c ##> k = error $ "This is the context: " ++ show c
 unfold :: Context -> Context
 unfold (CSum c)  = CSum c
 unfold p@(CMu _ (CSum ds)) = CSum $ mapRange (unfold' p False [""]) ds
-unfold c         = c --error $ "Trying to unfold two contexts of different type\n" ++
-                     --      show c
+unfold c         = error $ "Trying to unfold two contexts of different type\n" ++
+                         show c
 
 --         Givenprot -> given -> res Context
 unfold' :: Context -> Bool -> [String] -> Context -> Context
@@ -205,6 +205,8 @@ unfold' p x y z = error "Unfolding malformed context"
 
 
 lubFold :: Context -> Context -> Context
+lubFold c          c1
+    | trace ("in lubFold \nc: " ++ show c ++ "\ncs: " ++ show c1) False = undefined
 lubFold (CRec _)   c          = c
 lubFold c          (CRec _)   = c
 lubFold (CVar a)   (CVar b)   = CVar b
@@ -236,11 +238,18 @@ foldUp env x = if rec then res else x
           name'  = reverse $ drop 3 $ reverse name
           res    = CMu name' $ transform f lubbed
           (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
-          lubbed = foldr lubFold c cs
-          f (CMu _ c')       = c'
-          f y
-            | any (y ==) cs = CRec name'
-            | otherwise     = y
+          debugV = CSum [("Cons",CProd [CStr (CVar "a"),CStr (CRec "List_uf")]),("Nil",CProd [])]
+          lubbed = trace ("\nbefore lubFold \nx: " ++ show x) foldr lubFold c cs
+          f (CMu n c')
+            | n == name = CRec name'
+          f y           = y
+
+--TODO: Write this...
+--           env         template   'to-fold'  result
+foldUp' :: [CDataDec] -> Context -> Context -> Context
+foldUp' env t x
+    | not (isRec x env) = x
+foldUp' env r x = undefined
 
 -- Only safe on CSums
 -- PROPERTY: head (getRepeats x) == x
@@ -451,6 +460,7 @@ prot decs n = c
 -- transformers and the prototype demands for each function.
 type CompEnv = ([CDataDec], (CEnv, FTypes))
 
+-- Simple wrapper for looking up variable values in a Map
 lookupVar :: M.Map String a -> Exp -> Maybe a
 lookupVar m (Var i) = M.lookup i m
 
@@ -486,3 +496,12 @@ approxS env phi k (Let [(b, e1)] e) = res
                       Nothing -> p'
 approxS env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
 approxS env phit k e         = error $ "Non-exhaustive: " ++ show e
+
+approxSAlts' env phi k (pat@(App (Con c) as), alt) = (p', k')
+  where p' = deletes (freeVars pat) p
+        p  = approxS env phi k alt
+        CProd cs = mkAbs $ prot (fst env) c
+        prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
+        k' = if null as
+             then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+             else foldUp (fst env) $ inC c prod $ fst env

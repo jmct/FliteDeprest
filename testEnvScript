@@ -1,7 +1,7 @@
 let tfst (a, _, _) = a
 let tsnd (_, a, _) = a
 let tthd (_, _, a) = a
-:m Flite.Parse Flite.Syntax Flite.Projections Flite.TypeChecker2 Flite.Defunct2 Flite.Pretty Flite.Flic Flite.Projections.Contexts Data.List Data.Generics.Uniplate.Operations Data.Map Flite.Projections Flite.LambdaLift Flite.Dependency Flite.Projections.NiceType
+:m Flite.Parse Flite.Syntax Flite.Projections Flite.TypeChecker2 Flite.Defunct2 Flite.Pretty Flite.Flic Flite.Projections.Contexts Data.List Data.Generics.Uniplate.Operations Data.Map Flite.Projections Flite.LambdaLift Flite.Dependency Flite.Projections.NiceType Data.Maybe GHC.Exts
 parsed <- parseProgFile "examples_types/Queens2.hs"
 let converted = convertProg parsed
 let dTypes = tsnd converted
@@ -67,3 +67,19 @@ let i4 = analyseCallGroup prots tMap i3 (callGs !! 3)
 let i5 = analyseCallGroup prots tMap i4 (callGs !! 4)
 let i6 = analyseCallGroup prots tMap i5 (callGs !! 5)
 let i7 = analyseCallGroup prots tMap i6 (callGs !! 6)
+
+let retType = snd $ fromJust (Data.Map.lookup "map^Cons" tMap)
+let allPConts = pConts prots retType
+let myF = fst $ head $ callGs !! 4
+let argTypes = fst $ fromJust $ Data.Map.lookup "map^Cons" tMap
+let myDefCT = botDef prots myF argTypes
+let testRun = analyseFunc (myF, tMap) (prots, (myDefCT, tMap)) i3 (allPConts !! 0)
+let myCompEnv = (prots, (myDefCT, tMap))
+let myK = allPConts !! 0
+let myFRHS = funcRhs myF
+let (Case e alts) = myFRHS
+let nilAlt = head alts
+let conAlt = alts !! 1
+let (App (Con "Cons") as) = fst conAlt
+let (CProd cs) = mkAbs $ prot (fst myCompEnv) "Cons"
+let prod = CProd $ zipWith fromMaybe cs (fmap (lookupVar p) as)
