@@ -167,10 +167,6 @@ type FunEnv = M.Map (String, Context) Context
 
 type ValEnv = M.Map String Context
 
-dwn :: Context -> Context
-dwn (CLaz c) = c
-dwn (CStr c) = c
-dwn _        = error "Trying to use dwn on non-lifted context"
 
 -- TODO: I'm not sure about the use of M.Map...
 (##>) :: Context -> ValEnv -> ValEnv

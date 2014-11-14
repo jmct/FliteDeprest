@@ -43,6 +43,11 @@ isLifted (CLaz _) = True
 isLifted (CStr _) = True
 isLifted _        = False
 
+dwn :: Context -> Context
+dwn (CLaz c) = c
+dwn (CStr c) = c
+dwn _        = error "Trying to use dwn on non-lifted context"
+
 getLift :: Context -> Context -> Context
 getLift (CLaz _) = CLaz
 getLift (CStr _) = CStr
@@ -218,6 +223,24 @@ allVarContexts c = concat . take n . iterate (concatMap varContexts) $ [c]
 
 varContexts :: Context -> [Context]
 varContexts c = [ f j | (CVar n, f) <- contexts c, j <- [CBot]]
+
+listProd = foldr listProd' [[]]
+  where
+    listProd' x y = [x':ys | x' <- x, ys <- y]
+
+allLiftContexts' (CVar n)    = [CVar n, CBot]
+allLiftContexts' (CProd [])    = [CProd [], CBot]
+allLiftContexts' (CMu n c)  = CMu n `fmap` allLiftContexts' c
+allLiftContexts' (CSum cs)  = CSum `fmap` (listProd $ zipWith f ns $ map allLiftContexts' cs')
+  where
+    (ns,cs') = unzip cs
+    f s cs   = map (\c -> (s,c)) cs
+allLiftContexts' (CProd cs) = CProd `fmap` (listProd $ map allLiftContexts' cs)
+allLiftContexts' c 
+    | isLifted c = (map CStr cs) ++ (map CLaz cs)
+  where
+    cs = allLiftContexts' (dwn c)
+allLiftContexts' c    = [c]
 
 type ImEnv = [(String, Bool)]
 
