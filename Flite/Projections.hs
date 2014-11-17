@@ -182,8 +182,8 @@ c ##> k = error $ "This is the context: " ++ show c
 unfold :: Context -> Context
 unfold (CSum c)  = CSum c
 unfold p@(CMu _ (CSum ds)) = CSum $ mapRange (unfold' p False [""]) ds
-unfold c         = error $ "Trying to unfold two contexts of different type\n" ++
-                         show c
+unfold c         = c --error $ "Trying to unfold two contexts of different type\n" ++
+                     --    show c
 
 --         Givenprot -> given -> res Context
 unfold' :: Context -> Bool -> [String] -> Context -> Context
@@ -196,7 +196,7 @@ unfold' p b cs CBot       = CBot
 unfold' p False cs (CSum bs) = CMu (getBName p ++ "_uf") $ CSum $ mapRange (unfold' p True cs') bs
   where cs' = map fst bs
 unfold' p True cs (CSum bs)
-    | cs == cs' = CRec $ getBName p ++ "_uf"
+    | cs == cs' = CRec $ getBName p -- ++ "_uf"
     | otherwise = CSum $ mapRange (unfold' p True cs) bs
   where cs' = map fst bs
 unfold' p b cs (CProd bs) = CProd $ map (unfold' p b cs) bs
@@ -205,10 +205,8 @@ unfold' p x y z = error "Unfolding malformed context"
 
 
 lubFold :: Context -> Context -> Context
-lubFold c          c1
-    | trace ("in lubFold \nc: " ++ show c ++ "\ncs: " ++ show c1) False = undefined
-lubFold (CRec _)   c          = c
-lubFold c          (CRec _)   = c
+lubFold (CRec n)   c          = CRec n
+lubFold c          (CRec n)   = CRec n
 lubFold (CVar a)   (CVar b)   = CVar b
 lubFold CBot       c          = c
 lubFold c          CBot       = c
@@ -230,8 +228,8 @@ lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
 lubFold c          c1         = error $ "Non-exhaustive lubfold on " ++ show c ++ " " ++ show c1
 
 
-foldUp :: [CDataDec] -> Context -> Context
-foldUp env x = if rec then res else x
+foldUp' :: [CDataDec] -> Context -> Context
+foldUp' env x = if rec then res else x
     where rec    = isRec x env
           name   = last $ sortWith (suffixCount "_uf") recN
           recN   = [s | CMu s _ <- universe x] ++ [s | CRec s <- universe x]
@@ -239,17 +237,38 @@ foldUp env x = if rec then res else x
           res    = CMu name' $ transform f lubbed
           (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
           debugV = CSum [("Cons",CProd [CStr (CVar "a"),CStr (CRec "List_uf")]),("Nil",CProd [])]
-          lubbed = trace ("\nbefore lubFold \nx: " ++ show x) foldr lubFold c cs
+          lubbed = foldr lubFold c cs
           f (CMu n c')
             | n == name = CRec name'
           f y           = y
 
 --TODO: Write this...
 --           env         template   'to-fold'  result
-foldUp' :: [CDataDec] -> Context -> Context -> Context
-foldUp' env t x
+foldUp :: [CDataDec] -> Context -> Context -> Context
+foldUp env t x
     | not (isRec x env) = x
-foldUp' env r x = undefined
+foldUp env x@(CMu n (CSum cs)) y@(CSum ds) = CMu n lubbed
+  where
+    lubbed = foldr lubFold c cs
+    (c:cs) = getRepeats' x y
+foldUp env t x = CMu name lubbed
+  where
+    name   = last $ sortWith (suffixCount "_uf") recN
+    recN   = [s | CMu s _ <- universe x] ++ [s | CRec s <- universe x]
+    (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
+    lubbed = foldr lubFold c cs
+
+getRepeats' :: Context -> Context -> [Context]
+getRepeats' (CMu n x@(CSum cs)) y@(CSum ds) = y : go x y
+  where
+    go (CRec _)   (CRec _)  = []
+    go (CRec _)   (CMu _ c) = [c]
+    go (CMu _ c)  (CMu _ d) = []
+    go (CSum cs)  (CSum ds) = concat $ zipWith go (map snd cs) (map snd ds)
+    go (CProd cs) (CProd ds) = concat $ zipWith go cs ds
+    go  c          d
+        | isLifted c && isLifted d = go (dwn c) (dwn d)
+    go  c          d        = []
 
 -- Only safe on CSums
 -- PROPERTY: head (getRepeats x) == x
@@ -351,6 +370,7 @@ getGenCont' x           CBot       = pure CBot
 getFullBot :: Context -> Context -> Context
 getFullBot c CBot
     | c /= CBot && c /= CProd [] = mkBot c
+    | otherwise                  = CBot
 getFullBot (CVar _) (CVar s) = CVar s    
 getFullBot (CRec _) (CRec r) = CRec r
 getFullBot (CProd xs) (CProd ys) = CProd $ zipWith getFullBot xs ys
@@ -358,7 +378,8 @@ getFullBot (CSum xs)  (CSum ys)  = CSum $ zipWRange getFullBot xs ys
 getFullBot (CMu _ x)  (CMu r y)  = CMu r $ getFullBot x y
 getFullBot x          y
     | isLifted x && isLifted y = getLift y $ getFullBot (dwn x) (dwn y)
-    | otherwise                = error ":&:'s and :+:'s should be removed by this point"
+    | otherwise                = error $ ":&:'s and :+:'s should be removed by this point\nx: " ++
+                                         show x ++ "\n\ny: " ++ show y
 
 
 {-
@@ -472,7 +493,7 @@ approxS env phi k (Freeze e)   = k ##> approxS env phi (dwn k) e
 approxS env phi k (Unfreeze e) = approxS env phi (CStr k) e
 approxS env phi k ((Con n) `App` as)
     | null as   = M.singleton "ε" $ emptySeq k
-    | otherwise = conjs $ zipWith (approxS env phi) (children $ out n $ unfold k) as
+    | otherwise = conjs $ zipWith (approxS env phi) (children $ out' (fst env) n $ unfold k) as
 approxS env phi k ((Fun n) `App` as)
     | isPrim n  = conjs $ zipWith (approxS env phi) (children $ primTrans `lookupPrim` k) as
     | null as   = M.singleton "ε" $ emptySeq k
@@ -486,8 +507,8 @@ approxS env phi k (Case e alts) = meets newVEnvs
                   CProd cs = mkAbs $ prot (fst env) c
                   prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
                   k' = if null as
-                       then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-                       else foldUp (fst env) $ inC c prod $ fst env
+                       then foldUp (fst env) k $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+                       else foldUp (fst env) k $ inC c prod $ fst env
 approxS env phi k (Let [(b, e1)] e) = res
     where p   = approxS env phi k e
           p'  = b `M.delete` p

@@ -101,6 +101,19 @@ out n (CMu _ (CSum cs)) = case lookup n cs of
                     Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
 out n c  = error $ "This is the context: " ++ show c ++ " This is the Cons: " ++ show n
 
+-- Grab the relevant context for a specific constructor in a Sum-type
+out' :: [CDataDec] -> String -> Context -> Context
+out' prots n (CSum cs)         = case lookup n cs of
+                    Just c  -> c
+                    Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
+out' prots n (CMu _ (CSum cs)) = case lookup n cs of
+                    Just c  -> c
+                    Nothing -> error $ "Trying to extract undefined constructor " ++ show n ++ "from " ++ show cs ++ "\n"
+out' prots n CBot  = out' prots n c
+  where
+    c = mkBot $ cDataCont $ foundIn n prots
+out' prots n c  = error $ "This is the context: " ++ show c ++ " This is the Cons: " ++ show n
+
 -- Insert context on a constructor into a context on the sum-type
 inC :: String -> Context -> [CDataDec] -> Context
 inC n c ds = case c' of
