@@ -43,6 +43,11 @@ isLifted (CLaz _) = True
 isLifted (CStr _) = True
 isLifted _        = False
 
+dwn :: Context -> Context
+dwn (CLaz c) = c
+dwn (CStr c) = c
+dwn _        = error "Trying to use dwn on non-lifted context"
+
 getLift :: Context -> Context -> Context
 getLift (CLaz _) = CLaz
 getLift (CStr _) = CStr
@@ -201,10 +206,28 @@ muify (CMu n c) = CMu n $ transform f c
                       | otherwise = CVar n'
           f x = x
 muify c         = c
- 
--- return all of the _principle_ contexts from a prototype
+
+-- return all of the _principal_ contexts from a prototype
 allPrinContexts :: Context -> [Context]
-allPrinContexts = nub . map norm . concatMap allPrimContexts . allLiftContexts
+allPrinContexts = nub . map norm . allPrinContexts'
+ 
+allPrinContexts' (CProd [])    = [CProd [], CBot]
+allPrinContexts' (CMu n c)  = CMu n `fmap` allPrinContexts' c
+allPrinContexts' (CSum cs)  = CSum `fmap` (listProd $ zipWith f ns $ map allPrinContexts' cs')
+  where
+    (ns,cs') = unzip cs
+    f s cs   = map (\c -> (s,c)) cs
+allPrinContexts' (CProd cs) = CProd `fmap` (listProd $ map allPrinContexts' cs)
+allPrinContexts' c 
+    | isLifted c = (map CStr cs) ++ (map CLaz cs)
+  where
+    cs = allPrinContexts' (dwn c)
+allPrinContexts' c    = [c]
+
+-- return all of the _principal_ contexts from a prototype
+-- The slow original version
+allPrinContextsS :: Context -> [Context]
+allPrinContextsS = nub . map norm . concatMap allPrimContexts . allLiftContexts
 
 -- return all variations of a context. The resulting list could have multiple
 -- variations of an equivalent context. 
@@ -231,6 +254,11 @@ allVarContexts c = concat . take n . iterate (concatMap varContexts) $ [c]
 
 varContexts :: Context -> [Context]
 varContexts c = [ f j | (CVar n, f) <- contexts c, j <- [CBot]]
+
+listProd = foldr listProd' [[]]
+  where
+    listProd' x y = [x':ys | x' <- x, ys <- y]
+
 
 type ImEnv = [(String, Bool)]
 
