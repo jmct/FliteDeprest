@@ -193,10 +193,28 @@ muify (CMu n c) = CMu n $ transform f c
                       | otherwise = CVar n'
           f x = x
 muify c         = c
- 
--- return all of the _principle_ contexts from a prototype
+
+-- return all of the _principal_ contexts from a prototype
 allPrinContexts :: Context -> [Context]
-allPrinContexts = nub . map norm . concatMap allPrimContexts . allLiftContexts
+allPrinContexts = nub . map norm . allPrinContexts'
+ 
+allPrinContexts' (CProd [])    = [CProd [], CBot]
+allPrinContexts' (CMu n c)  = CMu n `fmap` allPrinContexts' c
+allPrinContexts' (CSum cs)  = CSum `fmap` (listProd $ zipWith f ns $ map allPrinContexts' cs')
+  where
+    (ns,cs') = unzip cs
+    f s cs   = map (\c -> (s,c)) cs
+allPrinContexts' (CProd cs) = CProd `fmap` (listProd $ map allPrinContexts' cs)
+allPrinContexts' c 
+    | isLifted c = (map CStr cs) ++ (map CLaz cs)
+  where
+    cs = allPrinContexts' (dwn c)
+allPrinContexts' c    = [c]
+
+-- return all of the _principal_ contexts from a prototype
+-- The slow original version
+allPrinContextsS :: Context -> [Context]
+allPrinContextsS = nub . map norm . concatMap allPrimContexts . allLiftContexts
 
 -- return all variations of a context. The resulting list could have multiple
 -- variations of an equivalent context. 
@@ -228,19 +246,6 @@ listProd = foldr listProd' [[]]
   where
     listProd' x y = [x':ys | x' <- x, ys <- y]
 
-allLiftContexts' (CVar n)    = [CVar n, CBot]
-allLiftContexts' (CProd [])    = [CProd [], CBot]
-allLiftContexts' (CMu n c)  = CMu n `fmap` allLiftContexts' c
-allLiftContexts' (CSum cs)  = CSum `fmap` (listProd $ zipWith f ns $ map allLiftContexts' cs')
-  where
-    (ns,cs') = unzip cs
-    f s cs   = map (\c -> (s,c)) cs
-allLiftContexts' (CProd cs) = CProd `fmap` (listProd $ map allLiftContexts' cs)
-allLiftContexts' c 
-    | isLifted c = (map CStr cs) ++ (map CLaz cs)
-  where
-    cs = allLiftContexts' (dwn c)
-allLiftContexts' c    = [c]
 
 type ImEnv = [(String, Bool)]
 
