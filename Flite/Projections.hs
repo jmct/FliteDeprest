@@ -201,7 +201,8 @@ unfold' p x y z = error "Unfolding malformed context"
 
 
 lubFold :: Context -> Context -> Context
-lubFold (CRec n)   c          = CRec n
+lubFold (CRec n)   (CMu _ c)  = c
+lubFold (CRec n)   c          = c
 lubFold c          (CRec n)   = CRec n
 lubFold (CVar a)   (CVar b)   = CVar b
 lubFold CBot       c          = c
@@ -221,16 +222,26 @@ lubFold (CStr c)   (CLaz d)   = CLaz $ lubFold c d
 lubFold (CLaz c)   (CStr d)   = CLaz $ lubFold c d
 lubFold (CStr c)   (CStr d)   = CStr $ lubFold c d
 lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
-lubFold c          c1         = error $ "Non-exhaustive lubfold on " ++ show c ++ " " ++ show c1
+lubFold c          c1         = error $ "Non-exhaustive lubfold on " ++ show c ++ "\n\n" ++ show c1
 
+
+-- Remove repeated sub-contexts
+remReps :: [Context] -> String -> Context -> Context
+remReps env n = transform f
+  where
+    f c
+      | c `elem` env = CRec n
+      | otherwise    = c
 
 -- Fold a context back into it's original recursive form
 --
 --           env         template   'to-fold'  result
 foldUp :: [CDataDec] -> Context -> Context -> Context
 foldUp env t x
+    | trace ("\n\nt: " ++ show t ++ "\n\nx: " ++ show x) False = undefined
+foldUp env t x
     | not (isRec x env) = x
-foldUp env x@(CMu n (CSum cs)) y@(CSum ds) = CMu n lubbed
+foldUp env x@(CMu n (CSum cs)) y@(CSum ds) = CMu n $ remReps cs n lubbed
   where
     lubbed = foldr lubFold c cs
     (c:cs) = getRepeats' x y
@@ -241,12 +252,19 @@ foldUp env t x = CMu name lubbed
     (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
     lubbed = foldr lubFold c cs
 
+{-
+getRepeats' :: Context -> Context -> [Context]
+getRepeats' (CMu n x@(CSum cs)) y@(CSum ds)
+    = [ CSum cs' | CSum cs' <- universe y, map fst cs' == map fst cs]
+    -}
+
 getRepeats' :: Context -> Context -> [Context]
 getRepeats' (CMu n x@(CSum cs)) y@(CSum ds) = y : go x y
   where
     go (CRec _)   (CRec _)  = []
-    go (CRec _)   (CMu _ c) = [c]
+    go (CRec _)   (CMu _ d) = [d]
     go (CMu _ c)  (CMu _ d) = []
+    go (CSum cs)  (CMu _ d) = go (CSum cs) d
     go (CSum cs)  (CSum ds) = concat $ zipWith go (map snd cs) (map snd ds)
     go (CProd cs) (CProd ds) = concat $ zipWith go cs ds
     go  c          d
@@ -474,3 +492,14 @@ approxS env phi k (Let [(b, e1)] e) = res
                       Nothing -> p'
 approxS env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
 approxS env phit k e         = error $ "Non-exhaustive: " ++ show e
+
+newVEnvs' env phi k (Case e alts) = map (mergeAlt' env phi k e . approxSAlts' env phi k) alts
+mergeAlt' env phi k e (a, b) = a &# (approxS env phi b e)
+approxSAlts' env phi k (pat@(App (Con c) as), alt) = (p', k')
+  where p' = deletes (freeVars pat) p
+        p  = approxS env phi k alt
+        CProd cs = mkAbs $ prot (fst env) c
+        prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
+        k' = if null as
+             then foldUp (fst env) k $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+             else foldUp (fst env) k $ inC c prod $ fst env
