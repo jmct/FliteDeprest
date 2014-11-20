@@ -2,7 +2,7 @@ let tfst (a, _, _) = a
 let tsnd (_, a, _) = a
 let tthd (_, _, a) = a
 :m Flite.Parse Flite.Syntax Flite.Projections Flite.TypeChecker2 Flite.Defunct2 Flite.Pretty Flite.Flic Flite.Projections.Contexts Data.List Data.Generics.Uniplate.Operations Data.Map Flite.Projections Flite.LambdaLift Flite.Dependency Flite.Projections.NiceType Data.Maybe GHC.Exts
-parsed <- parseProgFile "examples_types/Queens2.hs"
+parsed <- parseProgFile "examples_types/Taut.hs"
 let converted = convertProg parsed
 let dTypes = tsnd converted
 let prots = prototypes dTypes
@@ -67,6 +67,24 @@ let i4 = analyseCallGroup prots tMap i3 (callGs !! 3)
 let i5 = analyseCallGroup prots tMap i4 (callGs !! 4)
 let i6 = analyseCallGroup prots tMap i5 (callGs !! 5)
 let i7 = analyseCallGroup prots tMap i6 (callGs !! 6)
+let i8 = analyseCallGroup prots tMap i7 (callGs !! 7)
+let i9 = analyseCallGroup prots tMap i8 (callGs !! 8)
+let i10 = analyseCallGroup prots tMap i9 (callGs !! 9)
+let i11 = analyseCallGroup prots tMap i10 (callGs !! 10)
+let i12 = analyseCallGroup prots tMap i11 (callGs !! 11)
+let i13 = analyseCallGroup prots tMap i12 (callGs !! 12)
+let i14 = analyseCallGroup prots tMap i13 (callGs !! 13)
+let i15 = analyseCallGroup prots tMap i14 (callGs !! 14)
+let i16 = analyseCallGroup prots tMap i15 (callGs !! 15)
+let i17 = analyseCallGroup prots tMap i16 (callGs !! 16)
+let i18 = analyseCallGroup prots tMap i17 (callGs !! 17)
+let i19 = analyseCallGroup prots tMap i18 (callGs !! 18)
+let i20 = analyseCallGroup prots tMap i19 (callGs !! 19)
+let i21 = analyseCallGroup prots tMap i20 (callGs !! 20)
+let i22 = analyseCallGroup prots tMap i21 (callGs !! 21)
+let i23 = analyseCallGroup prots tMap i22 (callGs !! 22)
+let i24 = analyseCallGroup prots tMap i23 (callGs !! 23)
+let i25 = analyseCallGroup prots tMap i24 (callGs !! 24)
 
 let retType = snd $ fromJust (Data.Map.lookup "map^Cons" tMap)
 let allPConts = pConts prots retType
@@ -82,4 +100,6 @@ let nilAlt = head alts
 let conAlt = alts !! 1
 let (App (Con "Cons") as) = fst conAlt
 let (CProd cs) = mkAbs $ prot (fst myCompEnv) "Cons"
+let conAltRhs  = snd conAlt
+let p = approxS myCompEnv i3 myK conAltRhs
 let prod = CProd $ zipWith fromMaybe cs (fmap (lookupVar p) as)

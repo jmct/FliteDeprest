@@ -209,7 +209,7 @@ lubFold c          CBot       = c
 lubFold (CProd []) c          = CProd []
 lubFold c          (CProd []) = CProd []
 lubFold (CSum cs)  (CSum ds)  = if fcs /= fds
-                           then error "Performing lubFold on non-equivalent Sum-Contexts"
+                           then error ("Different sums!\nSum1: " ++ show (CSum cs) ++ "\n\nSum2: " ++ show (CSum ds))
                            else CSum (zipWRange lubFold cs ds)
     where fcs = map fst cs
           fds = map fst ds
@@ -224,21 +224,8 @@ lubFold (CMu n c)  (CMu o d)  = CMu n $ reRec n $ lubFold c d
 lubFold c          c1         = error $ "Non-exhaustive lubfold on " ++ show c ++ " " ++ show c1
 
 
-foldUp' :: [CDataDec] -> Context -> Context
-foldUp' env x = if rec then res else x
-    where rec    = isRec x env
-          name   = last $ sortWith (suffixCount "_uf") recN
-          recN   = [s | CMu s _ <- universe x] ++ [s | CRec s <- universe x]
-          name'  = reverse $ drop 3 $ reverse name
-          res    = CMu name' $ transform f lubbed
-          (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
-          debugV = CSum [("Cons",CProd [CStr (CVar "a"),CStr (CRec "List_uf")]),("Nil",CProd [])]
-          lubbed = foldr lubFold c cs
-          f (CMu n c')
-            | n == name = CRec name'
-          f y           = y
-
---TODO: Write this...
+-- Fold a context back into it's original recursive form
+--
 --           env         template   'to-fold'  result
 foldUp :: [CDataDec] -> Context -> Context -> Context
 foldUp env t x
@@ -249,7 +236,7 @@ foldUp env x@(CMu n (CSum cs)) y@(CSum ds) = CMu n lubbed
     (c:cs) = getRepeats' x y
 foldUp env t x = CMu name lubbed
   where
-    name   = last $ sortWith (suffixCount "_uf") recN
+    name   = if null recN then error ("Whoops! this is not recursive!: " ++ show x) else last $ sortWith (suffixCount "_uf") recN
     recN   = [s | CMu s _ <- universe x] ++ [s | CRec s <- universe x]
     (c:cs) = getRepeats name $ CMu name x --Safe because function always returns at least its arg
     lubbed = foldr lubFold c cs
@@ -378,32 +365,6 @@ getFullBot x          y
                                          show x ++ "\n\ny: " ++ show y
 
 
-{-
-getGenCont :: Context -> Context -> ([(String, Context)], Context)
-getGenCont = go []
-  where
-    go m (CVar n)    c          = ((n, c):m, CVar n)
-    go m (CRec _)   (CRec n)    = (m, CRec n)
-    go m (CSum xs)  (CSum ys)   = (m', CSum cs)
-      where
-        cons = map fst ys
-        xs'  = map snd xs
-        ys'  = map snd ys
-        zs   = zipWith (go m) xs' ys'
-        cs   = zip cons $ map snd zs
-        m'   = concatMap fst zs
-    go m (CProd xs) (CProd ys)  = (m', CProd cs)
-      where
-        zs = zipWith (go m) xs ys
-        cs = map snd zs
-        m' = concatMap fst zs
-    go m (CStr x)   (CStr y)    = (m, CStr y)
-    go m  CBot       CBot       = (m, CBot)
-    go m (CProd []) (CProd [])  = (m, CProd [])
--}
-
-
-
 -- Take a context and return the appropriate version for an empty sequence
 emptySeq :: Context -> Context
 emptySeq CBot       = CBot
@@ -513,12 +474,3 @@ approxS env phi k (Let [(b, e1)] e) = res
                       Nothing -> p'
 approxS env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
 approxS env phit k e         = error $ "Non-exhaustive: " ++ show e
-
-approxSAlts' env phi k (pat@(App (Con c) as), alt) = (p', k')
-  where p' = deletes (freeVars pat) p
-        p  = approxS env phi k alt
-        CProd cs = mkAbs $ prot (fst env) c
-        prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
-        k' = if null as
-             then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-             else foldUp (fst env) $ inC c prod $ fst env
