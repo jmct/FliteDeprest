@@ -13,6 +13,8 @@ import Data.Set ( isSubsetOf
                 , singleton
                 , empty
                 , Set
+                , fromList
+                , toList
                 )
 import qualified Data.Set as S
 
@@ -209,7 +211,11 @@ muify c         = c
 
 -- return all of the _principal_ contexts from a prototype
 allPrinContexts :: Context -> [Context]
-allPrinContexts = nub . map norm . allPrinContexts'
+allPrinContexts = toList . fromList . map norm . allPrinContexts'
+
+-- return all of the _principal_ contexts from a prototype :: Slow!
+allPrinContextsSlow :: Context -> [Context]
+allPrinContextsSlow = nub . map norm . allPrinContexts'
  
 allPrinContexts' (CProd [])    = [CProd [], CBot]
 allPrinContexts' (CMu n c)  = CMu n `fmap` allPrinContexts' c

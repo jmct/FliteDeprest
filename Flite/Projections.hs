@@ -90,9 +90,11 @@ botDef ps fun = M.singleton (funcName fun) . CProd . map mkStrBot
   where
     mkStrBot = mkBot . CStr . getCont ps
 
+-- Generate all of the principal contexts from a NiceType
 pConts :: [CDataDec] -> NiceType -> [Context]
 pConts env = allPrinContexts . getCont env
 
+-- Get the prototypical context from a NiceType
 getCont :: [CDataDec] -> NiceType -> Context
 getCont env (NCons n ars) = case lookupByName n env of
                               Nothing -> if length ars == 0
@@ -189,7 +191,9 @@ unfold' p b cs (CLaz m)   = CLaz $ unfold' p b cs m
 unfold' p b cs (CRec m)   = unfold' p b cs c
   where c = head $ children p
 unfold' p b cs CBot       = CBot
-unfold' p False cs (CSum bs) = CMu (getBName p ++ "_uf") $ CSum $ mapRange (unfold' p True cs') bs
+unfold' p@(CMu _ (CSum ds)) False cs (CSum bs)
+    | map fst ds == map fst bs = CMu (getBName p ++ "_uf") $ CSum $ mapRange (unfold' p True cs') bs
+    | otherwise                = CSum bs
   where cs' = map fst bs
 unfold' p True cs (CSum bs)
     | cs == cs' = CRec $ getBName p -- ++ "_uf"
@@ -227,25 +231,27 @@ lubFold c          c1         = error $ "Non-exhaustive lubfold on " ++ show c +
 
 -- Remove repeated sub-contexts
 remReps :: [Context] -> String -> Context -> Context
-remReps env n = transform f
-  where
-    f c
-      | c `elem` env = CRec n
-      | otherwise    = c
+remReps env n (CSum cs)
+    | (CSum cs) `elem` env = CRec n
+    | otherwise            = CSum $ mapRange (remReps env n) cs
+remReps env n (CProd cs)   = CProd $ map (remReps env n) cs
+remReps env n (CMu n' c)   = CMu n' $ remReps env n c
+remReps env n (CStr c)     = CStr $ remReps env n c
+remReps env n (CLaz c)     = CStr $ remReps env n c
+remReps env n c            = c
 
 -- Fold a context back into it's original recursive form
---
---           env         template   'to-fold'  result
-foldUp :: [CDataDec] -> Context -> Context -> Context
-foldUp env t x
-    | trace ("\n\nt: " ++ show t ++ "\n\nx: " ++ show x) False = undefined
-foldUp env t x
+foldUp :: [CDataDec] -> Context -> Context
+--foldUp env x
+--    | trace ("\n\nx: " ++ show x) False = undefined
+foldUp env x
     | not (isRec x env) = x
-foldUp env x@(CMu n (CSum cs)) y@(CSum ds) = CMu n $ remReps cs n lubbed
+foldUp env x@(CSum ds) = CMu n $ remReps cs n lubbed
   where
+    t@(CMu n d) = cDataCont $ foundIn (fst $ head ds) env
     lubbed = foldr lubFold c cs
-    (c:cs) = getRepeats' x y
-foldUp env t x = CMu name lubbed
+    (c:cs) = getRepeats' t x
+foldUp env x = CMu name lubbed
   where
     name   = if null recN then error ("Whoops! this is not recursive!: " ++ show x) else last $ sortWith (suffixCount "_uf") recN
     recN   = [s | CMu s _ <- universe x] ++ [s | CRec s <- universe x]
@@ -263,6 +269,7 @@ getRepeats' (CMu n x@(CSum cs)) y@(CSum ds) = y : go x y
   where
     go (CRec _)   (CRec _)  = []
     go (CRec _)   (CMu _ d) = [d]
+    go (CRec _)   (CSum ds) = [CSum ds]
     go (CMu _ c)  (CMu _ d) = []
     go (CSum cs)  (CMu _ d) = go (CSum cs) d
     go (CSum cs)  (CSum ds) = concat $ zipWith go (map snd cs) (map snd ds)
@@ -305,6 +312,14 @@ suffixCount suf str = go 0 revS
 deletes :: Ord k => [k] -> M.Map k a -> M.Map k a
 deletes ks m = foldl' (flip M.delete) m ks
 
+-- TODO:
+-- This seems like a useful function...
+firstJust :: b -> [(a -> b, Maybe a)] -> b
+firstJust = foldr f
+  where
+    f (g, Just x)  _ = g x
+    f (_, Nothing) y = y
+
 
 -- lookup the context resulting from calling a function with the given demand
 -- Key point here is that the context that we are looking up 'c' may not necessarily
@@ -313,20 +328,13 @@ deletes ks m = foldl' (flip M.delete) m ks
 -- `blankContext` and we have to make sure the context is as general as possible
 -- (Defintion 7.6 in Hinze's work)
 lookupCT :: (FunEnv, CompEnv) -> String -> Context -> Context
-lookupCT (phi, env) n c =
-    case M.lookup (n, blankContext c) phi of
-        Just k' -> k'
-        Nothing -> case M.lookup (n, k) phi of
-                        Just k'' -> evalContxt varMap k''
-                        Nothing  -> case M.lookup (n, evalToBot k) phi of
-                                        Just j -> evalContxt (mapRange mkBot varMap) j
-                                        Nothing -> case M.lookup (n, k2) phi of
-                                                    Just v -> v
-                                                    Nothing -> case M.lookup n def of
-                                                                     Just v -> v
-                                                                     Nothing -> error $ "Trying to look up " ++ show (n, c) ++ " in lookupCT\n"
-                                             --def M.! n -- As long as default is initialised for
-                                             -- each function, this is safe.
+lookupCT (phi, env) n c = firstJust err [ (id,                                 M.lookup (n, blankContext c) phi)
+                                        , (evalContxt varMap,                  M.lookup (n, k) phi)
+                                        , (evalContxt (mapRange mkBot varMap), M.lookup (n, evalToBot k) phi)
+                                        , (id,                                 M.lookup (n, k2) phi)
+                                        , (id,                                 M.lookup (n, norm $ blankContext c) phi)
+                                        , (id,                                 M.lookup n def)
+                                        ]
   where
     def          = fst $ snd env
     retCont      = getCont (fst env) $ snd $ case M.lookup n (snd $ snd env) of { Just x -> x; Nothing -> error "here" }
@@ -334,6 +342,12 @@ lookupCT (phi, env) n c =
     k            = blankContext $ c'
     (varMap, c') = getGenCont retCont c
     k2           = blankContext $ getFullBot retCont c
+    err          =  error $ "\nTrying to look up\n\n" ++ show (n, blankContext c) ++
+                            " in lookupCT\n" ++
+                            "\n\n" ++ show (n, k) ++
+                            "\n\n" ++ show (n, evalToBot k) ++
+                            "\n\n" ++ show (n, k2) ++
+                            "\n\n" ++ show (n, norm c)
 
 evalToBot :: Context -> Context
 evalToBot = transform f
@@ -364,6 +378,7 @@ getGenCont' x           (CLaz y)
     | otherwise  = error "Template is not matching a lifted context (This should never happen)"
 getGenCont' x           (CProd []) = pure $ CProd []
 getGenCont' x           CBot       = pure CBot
+getGenCont' x           y       = error ("\n\nNon-ex getGenCont'\n\nx: " ++ show x ++ "\n\n" ++ show y)
 
 -- Sometimes the demand on a parameterised type will have 'CBot' in place of a context variable.
 -- This function gives you the equivalent 'expanded' context
@@ -482,8 +497,8 @@ approxS env phi k (Case e alts) = meets newVEnvs
                   CProd cs = mkAbs $ prot (fst env) c
                   prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
                   k' = if null as
-                       then foldUp (fst env) k $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-                       else foldUp (fst env) k $ inC c prod $ fst env
+                       then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+                       else foldUp (fst env) $ inC c prod $ fst env
 approxS env phi k (Let [(b, e1)] e) = res
     where p   = approxS env phi k e
           p'  = b `M.delete` p
@@ -501,5 +516,5 @@ approxSAlts' env phi k (pat@(App (Con c) as), alt) = (p', k')
         CProd cs = mkAbs $ prot (fst env) c
         prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
         k' = if null as
-             then foldUp (fst env) k $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-             else foldUp (fst env) k $ inC c prod $ fst env
+             then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+             else foldUp (fst env) $ inC c prod $ fst env
