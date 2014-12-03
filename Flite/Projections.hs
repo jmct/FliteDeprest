@@ -24,7 +24,7 @@ import Control.Monad
 import qualified Data.Map.Strict as M
 import Debug.Trace
 
---projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
+projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
 projAnalysis (prog, dataTypes, funTypes) = foldl' f M.empty (take (l - 1) callGs)
   where
     f      = analyseCallGroup (prototypes dataTypes) tMap
@@ -42,8 +42,8 @@ type FTypes = M.Map String ([NiceType],NiceType)
 analyseCallGroup :: [CDataDec] -> FTypes -> FunEnv -> [(Decl, Bool)] -> FunEnv
 analyseCallGroup prots tMap phi [(f@(Func n _ _), isR)]
     | trace ("analysing " ++ n) False = undefined
-    | isR       = phi `M.union` (fixMap runRec phi)
-    | otherwise = phi `M.union` (M.fromList $ map (runIt phi) conts)
+    | isR       = (fixMap runRec phi) `M.union` phi
+    | otherwise = (M.fromList $ map (runIt phi) conts) `M.union` phi
   where 
     (aT, retT) = tMap M.! n
     def2       = botDef prots f aT
@@ -77,7 +77,7 @@ analyseFunc (Func n as rhs, tMap) env phi k = ((n, k'), mapToProd as defAbs anal
 fixMap :: (FunEnv -> FunEnv) -> FunEnv -> FunEnv
 fixMap f p
     | trace ("One iter\n") False = undefined
-fixMap f p = let p' = M.union p (f p) in
+fixMap f p = let p' = M.union (f p) p in
                  case p' == p of
                    True  -> p'
                    False -> fixMap f p'
