@@ -237,7 +237,7 @@ remReps env n (CSum cs)
 remReps env n (CProd cs)   = CProd $ map (remReps env n) cs
 remReps env n (CMu n' c)   = CMu n' $ remReps env n c
 remReps env n (CStr c)     = CStr $ remReps env n c
-remReps env n (CLaz c)     = CStr $ remReps env n c
+remReps env n (CLaz c)     = CLaz $ remReps env n c
 remReps env n c            = c
 
 -- Fold a context back into it's original recursive form
