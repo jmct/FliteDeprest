@@ -2,8 +2,12 @@ module Flite.AutoPar where
 
 import Flite.Syntax
 import Flite.Writer
-import Flite.Projections
+import Flite.Traversals
+import Flite.Projections hiding (mergeAlt')
 import Flite.Projections.Contexts
+import Control.Applicative
+import Data.Generics.Uniplate.Operations
+import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
@@ -16,87 +20,54 @@ gatherCalls :: CompEnv -> FunEnv -> Context -> Exp -> Writer Calls ValEnv
 gatherCalls env phi k (Var n)      = pure $ M.singleton n k
 gatherCalls env phi k (Int n)      = pure $ M.empty
 gatherCalls env phi k (Con n)      = pure $ M.empty
-gatherCalls env phi k (Freeze e)   = pure $ k ##> gatherCalls env phi (dwn k) e
+gatherCalls env phi k (Freeze e)   = gatherCalls env phi (dwn k) e >>= pure . (k ##>)
 gatherCalls env phi k (Unfreeze e) = gatherCalls env phi (CStr k) e
 gatherCalls env phi k ((Con n) `App` as)
     | null as   = pure $ M.singleton "ε" $ emptySeq k
     | otherwise = fmap conjs $ sequence $ zipWith (gatherCalls env phi) (children $ out' (fst env) n $ unfold k) as
 gatherCalls env phi k ((Fun n) `App` as)
-    | isPrim n  = write (n, k) >> fmap conjs $ sequence $ zipWith (gatherCalls env phi) (children $ primTrans `lookupPrim` k) as
+    | isPrim n  = write (n, k) >> (fmap conjs $ sequence $ zipWith (gatherCalls env phi) (children $ primTrans `lookupPrim` k) as)
     | null as   = pure $ M.singleton "ε" $ emptySeq k
-    | otherwise = write (n, k') >> fmap conjs $ sequence $ zipWith (gatherCalls env phi) (children $ k') as
-  where
-    (k', ct) = lookupCT (phi, env) n k
-gatherCalls env phi k (Case e alts) = meets newVEnvs
-    where newVEnvs        = map (mergeAlt . gatherCallsAlts) alts
-          mergeAlt (a, b) = a &# (gatherCalls env phi b e)
-          gatherCallsAlts (pat@(App (Con c) as), alt) = (p', k')
-            where p' = deletes (freeVars pat) p
-                  p  = gatherCalls env phi k alt
-                  CProd cs = mkAbs $ prot (fst env) c
-                  prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
-                  k' = if null as
-                       then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-                       else foldUp (fst env) $ inC c prod $ fst env
-gatherCalls env phi k (Let [(b, e1)] e) = res
-    where p   = gatherCalls env phi k e
-          p'  = b `M.delete` p
-          res  = case b `M.lookup` p of
-                      Just v  -> p' &# (v ##> gatherCalls env phi (dwn v) e1)
-                      Nothing -> p'
-gatherCalls env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
-gatherCalls env phit k e         = error $ "Non-exhaustive: " ++ show e
-
-newVEnvs' env phi k (Case e alts) = map (mergeAlt' env phi k e . gatherCallsAlts' env phi k) alts
-mergeAlt' env phi k e (a, b) = a &# (gatherCalls env phi b e)
-gatherCallsAlts' env phi k (pat@(App (Con c) as), alt) = (p', k')
-  where p' = deletes (freeVars pat) p
-        p  = gatherCalls env phi k alt
-        CProd cs = mkAbs $ prot (fst env) c
-        prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
-        k' = if null as
-             then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-             else foldUp (fst env) $ inC c prod $ fst env
-
-gatherCalls :: CompEnv -> FunEnv -> Context -> Exp -> (FunEnv, Calls)
---The Boring cases
-gatherCalls env phi k (Var n)      = S.empty
-gatherCalls env phi k (Int n)      = S.empty
-gatherCalls env phi k (Con n)      = S.empty
-gatherCalls env phi k (Freeze e)   = gatherCalls env phi (dwn k) e
-gatherCalls env phi k (Unfreeze e) = gatherCalls env phi (CStr k) e
-
--- For constructors we just have to union the call demands from all the sub-expressions
-gatherCalls env phi k ((Con n) `App` as)
-    | null as   = S.empty
-    | otherwise = S.unions $ zipWith (gatherCalls env phi) (children $ out' (fst env) n $ unfold k) as
-
--- See Note [1]
-gatherCalls env phi k ((Fun n) `App` as)
-    | isPrim n  = S.unions $ (S.singleton (n,k)) : zipWith (gatherCalls env phi) (children $ primTrans `lookupPrim` k) as
-    | null as   = S.empty
-    | otherwise = S.unions $ (S.singleton (n,k')) : zipWith (gatherCalls env phi) (children $ ct) as
+    | otherwise = write (n, k') >> (fmap conjs $ sequence $ zipWith (gatherCalls env phi) (children $ ct) as)
   where
     (k', ct) = lookupCT' (phi, env) n k
-
-gatherCalls env phi k (Case e alts) = S.unions $ map (mergeAlt . gatherCallsAlts) alts
-    where mergeAlt (a, b) = a `S.union` (gatherCalls env phi b e)
-          gatherCallsAlts (pat@(App (Con c) as), alt) = (p', k')
-            where p' = deletes (freeVars pat) p
-                  p  = gatherCalls env phi k alt
-                  CProd cs = mkAbs $ prot (fst env) c
-                  prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
-                  k' = if null as
-                       then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
-                       else foldUp (fst env) $ inC c prod $ fst env
-gatherCalls env phi k (Let [(b, e1)] e) = res
-    where p   = gatherCalls env phi k e
-          p'  = b `M.delete` p
-          res  = case b `M.lookup` p of
-                      Just v  -> p' &# (v ##> gatherCalls env phi (dwn v) e1)
-                      Nothing -> p'
+gatherCalls env phi k (Case e alts) = do
+        ts <- sequence $ map gatherCallsAlts alts
+        let (fEnvs, ks) = unzip ts
+            newK = foldr1 (\/) ks
+        gatherCalls env phi newK e >>= (\ funEnv -> pure $ (meets fEnvs) \/# funEnv)
+  where
+    gatherCallsAlts (pat@(App (Con c) as), alt) = do
+            p <- gatherCalls env phi k alt
+            let p' = deletes (freeVars pat) p
+                CProd cs = mkAbs $ prot (fst env) c
+                prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
+                k' = if null as
+                     then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+                     else foldUp (fst env) $ inC c prod $ fst env
+            return (p', k')
+gatherCalls env phi k (Let [(b, e1)] e) = do
+        p <- gatherCalls env phi k e
+        let p'  = b `M.delete` p
+        case b `M.lookup` p of
+             Just v  -> do
+                  p1 <- gatherCalls env phi (dwn v) e1
+                  return $ p' &# (v ##> p1)
+             Nothing -> return p'
 gatherCalls env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
 gatherCalls env phit k e         = error $ "Non-exhaustive: " ++ show e
+
+--newVEnvs' env phi k (Case e alts) = map (mergeAlt' env phi k e . gatherCallsAlts' env phi k) alts
+-- mergeAlt' env phi k e (a, b) = a &# (gatherCalls env phi b e)
+gatherCallsAlts' env phi k (pat@(App (Con c) as), alt) = do
+            p <- gatherCalls env phi k alt
+            let p' = deletes (freeVars pat) p
+                CProd cs = mkAbs $ prot (fst env) c
+                prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
+                k' = if null as
+                     then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
+                     else foldUp (fst env) $ inC c prod $ fst env
+            return (p', k')
 
 -----------
 -- NOTE [1]
@@ -108,7 +79,7 @@ gatherCalls env phit k e         = error $ "Non-exhaustive: " ++ show e
 
 -- TODO:
 -- This seems like a useful function...
-firstJust' :: b -> [(a -> b, c, Maybe a)] -> (c, b)
+firstJust' :: (c, b) -> [(a -> b, c, Maybe a)] -> (c, b)
 firstJust' = foldr f
   where
     f (g, k, Just x)  _ = (k, g x)
