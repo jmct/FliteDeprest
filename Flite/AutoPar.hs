@@ -11,12 +11,57 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
+{- We aren't at this level yet...
+gatherProg :: (Prog, [PDataDec], [(Id, Type_exp)]) -> [Calls]
+gatherProg = undefined
+-}
+
+setJoin :: Ord a => S.Set (S.Set a) -> S.Set a
+setJoin s = S.fold S.union S.empty s
+
+concatMapSet :: (Ord a, Ord b) => (a -> S.Set b) -> S.Set a -> S.Set b
+concatMapSet f s = setJoin (S.map f s)
+
+-- Run a computation on a FunEnv until a fixed point is reached
+fixSet :: (Ord a, Eq a) => (S.Set a -> S.Set a) -> S.Set a -> S.Set a
+--fixSet f p
+--    | trace ("One iter\n") False = undefined
+fixSet f p = let p' = S.union (f p) p in
+                 case p' == p of
+                   True  -> p'
+                   False -> fixSet f p'
+
 
 -- We represent a 'call-demand' as the name of the function
 -- along with the required demand on its result
 type Calls = (String, Context)
 
-gatherCalls :: CompEnv -> FunEnv -> Context -> Exp -> Writer Calls ValEnv
+type GathEnv = ([CDataDec], FTypes)
+
+--gather1 :: GathEnv -> FunEnv -> Prog -> [(String, Context)] -> S.Set (String, Context)
+gatherProg env phi decs = fixSet (concatMapSet f) (S.singleton ("main", CProd []))
+  where
+    f (name, k)
+        | name `elem` prims = S.empty
+        | otherwise         = S.fromList $ getCalls env phi k $ getBody name
+    getBody     = funcRhs . lookupFunc decs
+
+-- Run a pass of gatherCalls and return only the list of Calls
+getCalls :: GathEnv -> FunEnv -> Context -> Exp -> [Calls]
+getCalls env phi k = fst . runWriter . gatherCalls env phi k
+
+{-
+-- This analysis is close to an exact copy of approxS with a two main differences
+--
+-- 1) It is in a writer monad, so that we can write the calls to any function
+--      as we traverse the Exp
+--
+-- 2) For Case expressions we only analyse the scrutinee once (instead of once for
+--      each alternative). We perform the traversal on the scrutinee with the LUB
+--      of the demands on the from each of the alternatives. This gives us the
+--      safe demand on the scrutinee
+ -}
+gatherCalls :: GathEnv -> FunEnv -> Context -> Exp -> Writer Calls ValEnv
 gatherCalls env phi k (Var n)      = pure $ M.singleton n k
 gatherCalls env phi k (Int n)      = pure $ M.empty
 gatherCalls env phi k (Con n)      = pure $ M.empty
@@ -92,7 +137,7 @@ firstJust' = foldr f
 -- we have to make sure that all of the strings in the context are blanked out 
 -- `blankContext` and we have to make sure the context is as general as possible
 -- (Defintion 7.6 in Hinze's work)
-lookupCT' :: (FunEnv, CompEnv) -> String -> Context -> (Context, Context)
+lookupCT' :: (FunEnv, GathEnv) -> String -> Context -> (Context, Context)
 lookupCT' (phi, env) n c = firstJust' err [ (id,                                 bc, M.lookup (n, bc) phi)
                                           , (evalContxt varMap,                  k , M.lookup (n, k) phi)
                                           , (evalContxt (mapRange mkBot varMap), k1, M.lookup (n, k1) phi)
@@ -100,8 +145,7 @@ lookupCT' (phi, env) n c = firstJust' err [ (id,                                
                                           , (id,                                 k3, M.lookup (n, k3) phi)
                                           ]
   where
-    def          = fst $ snd env
-    retCont      = getCont (fst env) $ snd $ case M.lookup n (snd $ snd env) of { Just x -> x; Nothing -> error "here" }
+    retCont      = getCont (fst env) $ snd $ case M.lookup n (snd env) of { Just x -> x; Nothing -> error "here" }
     prots        = fst env
     bc           = blankContext c
     k            = blankContext $ c'
