@@ -24,10 +24,21 @@ import Control.Monad
 import qualified Data.Map.Strict as M
 import Debug.Trace
 
-projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> FunEnv
-projAnalysis (prog, dataTypes, funTypes) = foldl' f M.empty (take (l - 1) callGs)
+
+-- A mapping from the name of a function to its argument and result types
+type FTypes = M.Map String ([NiceType],NiceType)
+
+-- A projection analysis on a program returns:
+--
+-- 1) The results of the analysis (a FunEnv) that acts as a context transformer
+-- 2) The list of prototype contexts for the defined data-types
+-- 3) A map from a function name to it's argument and result types
+projAnalysis :: (Prog, [PDataDec], [(Id, Type_exp)]) -> (FunEnv, [CDataDec], FTypes)
+projAnalysis (prog, dataTypes, funTypes) = (anal, prots, tMap)
   where
-    f      = analyseCallGroup (prototypes dataTypes) tMap
+    anal   = foldl' f M.empty (take (l - 1) callGs)
+    f      = analyseCallGroup prots tMap
+    prots  = prototypes dataTypes
     callGs = (fmap . fmap) makeTup (callGroups prog)
     l      = length callGs
     recs   = isSelfRec $ callGraph prog
@@ -36,8 +47,6 @@ projAnalysis (prog, dataTypes, funTypes) = foldl' f M.empty (take (l - 1) callGs
     makeTup dec@(Func n _ _) = (dec, fromJust lookR)
       where
         lookR = lookup n recs
-
-type FTypes = M.Map String ([NiceType],NiceType)
 
 analyseCallGroup :: [CDataDec] -> FTypes -> FunEnv -> [(Decl, Bool)] -> FunEnv
 analyseCallGroup prots tMap phi [(f@(Func n _ _), isR)]
@@ -74,7 +83,7 @@ analyseFunc (Func n as rhs, tMap) env phi k = ((n, k'), mapToProd as defAbs anal
         analysisRes  = approxS env phi k rhs
 
 -- Run a computation on a FunEnv until a fixed point is reached
-fixMap :: (FunEnv -> FunEnv) -> FunEnv -> FunEnv
+fixMap :: (Ord k, Eq k, Eq a) => (M.Map k a -> M.Map k a) -> M.Map k a -> M.Map k a
 fixMap f p
     | trace ("One iter\n") False = undefined
 fixMap f p = let p' = M.union (f p) p in
