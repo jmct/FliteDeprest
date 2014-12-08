@@ -36,10 +36,25 @@ fixSet f p = let p' = S.union (f p) p in
 -- along with the required demand on its result
 type Calls = (String, Context)
 
+type BodyCalls = (String, Context, S.Set Calls)
+
 type GathEnv = ([CDataDec], FTypes)
 
 --gather1 :: GathEnv -> FunEnv -> Prog -> [(String, Context)] -> S.Set (String, Context)
-gatherProg env phi decs = fixSet (concatMapSet f) (S.singleton ("main", CProd []))
+gatherProg env phi decs = fixSet (concatMapSet f) (S.singleton ("main", CProd [], S.empty))
+  where
+    f (name, k, calls)
+        | name `elem` prims = S.empty
+        | S.null calls      = S.fromList $ (name, k, S.fromList calls') : map g calls'
+        | otherwise         = S.singleton (name, k, calls)
+      where
+        calls'   = getCalls env phi k $ getBody name
+        g (n, k) = (n, k, S.empty)
+
+    getBody     = funcRhs . lookupFunc decs
+
+--gather1 :: GathEnv -> FunEnv -> Prog -> [(String, Context)] -> S.Set (String, Context)
+gather1 env phi decs = fixSet (concatMapSet f) (S.singleton ("main", CProd []))
   where
     f (name, k)
         | name `elem` prims = S.empty
