@@ -10,6 +10,49 @@ import Data.Generics.Uniplate.Operations
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import Data.List (groupBy)
+
+needsDemSpec :: (Id, [(Context, S.Set Calls)]) -> Bool
+needsDemSpec (_, [])  = False
+needsDemSpec (_, [_]) = False
+needsDemSpec (n, xs)  = not noCalls || not sameSet
+  where
+    noCalls = and $ map (S.null . snd) xs
+    sets    = map snd xs
+    sameSet = all ((head sets) ==) sets
+
+{- The idea here is to take the raw information from 'gatherProg' and turn it into
+ - a more easily processed form. So we pair each function in the program with all
+ - of the demands on it and the set of Calls to other functions based on those
+ - demands
+ -
+ -                          (Id, [(Context, S.Set Calls)])
+ -             name of func---^      ^        ^ 
+ -             demand on result -----|        |----- Calls based on that demand    
+ -}
+demandGroups :: S.Set ((Id, Context), S.Set Calls) -> [(Id, [(Context, S.Set Calls)])]
+demandGroups = uniqIds . uniqDems
+  where
+    fstEq x y      = fst x == fst y
+    nameDem x      = (fst $ head x, S.unions $ map snd x) -- See note 'Head'
+    name x y       = (fst $ fst x) == (fst $ fst y)
+    drpF ((_,b),c) = (b, c)
+    facout x       = (fst $ fst $ head x, map drpF x)     -- See note 'Head'
+
+
+    -- First factor out the sets of common (Id, Context) pairs
+    -- result :: [((Id, Context), S.Set Calls)]
+    uniqDems = fmap nameDem . groupBy fstEq . S.toList
+
+    -- Then Factor out the common Ids, putting the varying demands in a list
+    -- result :: [(Id, [(Context, S.Set Calls)])]
+    uniqIds = fmap facout . groupBy name
+
+        -- NOTE: Head
+        -- In these two functions, the use of head is safe because we are mapping
+        -- over a list created by 'groupBy'. We know the the 'inner lists' returned by
+        -- groupBy are never empty.
+
 
 {- We aren't at this level yet...
 gatherProg :: (Prog, [PDataDec], [(Id, Type_exp)]) -> [Calls]
@@ -31,6 +74,15 @@ fixSet f p = let p' = S.union (f p) p in
                    True  -> p'
                    False -> fixSet f p'
 
+-- Run a computation on a FunEnv until a fixed point is reached
+fixSet' :: (Ord a, Eq a) => (S.Set a -> S.Set a) -> S.Set a -> S.Set a
+--fixSet' f p
+--    | trace ("One iter\n") False = undefined
+fixSet' f p = let p' = f p in
+                 case p' == p of
+                   True  -> p'
+                   False -> fixSet' f p'
+
 
 -- We represent a 'call-demand' as the name of the function
 -- along with the required demand on its result
@@ -41,15 +93,15 @@ type BodyCalls = (String, Context, S.Set Calls)
 type GathEnv = ([CDataDec], FTypes)
 
 --gather1 :: GathEnv -> FunEnv -> Prog -> [(String, Context)] -> S.Set (String, Context)
-gatherProg env phi decs = fixSet (concatMapSet f) (S.singleton ("main", CProd [], S.empty))
+gatherProg env phi decs = fixSet' (concatMapSet f) (S.singleton (("main", CProd []), S.empty))
   where
-    f (name, k, calls)
+    f ((name, k), calls)
         | name `elem` prims = S.empty
-        | S.null calls      = S.fromList $ (name, k, S.fromList calls') : map g calls'
-        | otherwise         = S.singleton (name, k, calls)
+        | S.null calls      = S.fromList $ ((name, k), S.fromList calls') : map g calls'
+        | otherwise         = S.singleton ((name, k), calls)
       where
-        calls'   = getCalls env phi k $ getBody name
-        g (n, k) = (n, k, S.empty)
+        calls' = getCalls env phi k $ getBody name
+        g x    = (x, S.empty)
 
     getBody     = funcRhs . lookupFunc decs
 
