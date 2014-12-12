@@ -7,19 +7,57 @@ import Flite.Projections hiding (mergeAlt')
 import Flite.Projections.Contexts
 import Control.Applicative
 import Data.Generics.Uniplate.Operations
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
-import Data.List (groupBy)
+import Data.List (groupBy, sort)
 
-needsDemSpec :: (Id, [(Context, S.Set Calls)]) -> Bool
-needsDemSpec (_, [])  = False
-needsDemSpec (_, [_]) = False
-needsDemSpec (n, xs)  = not noCalls || not sameSet
+-- We represent a 'call-demand' as the name of the function
+-- along with the required demand on its result
+type Calls = (String, Context)
+
+type BodyCalls = (String, Context, S.Set Calls)
+
+type GathEnv = ([CDataDec], FTypes)
+
+type CallEnv = [(String, M.Map Context String)]
+
+tfst (x, _, _) = x
+
+parProg pt = undefined --map (fst $ specCalls callEnv (prots, tMap) pAnal) $ tfst pt
+  where
+    (pAnal, prots, tMap) = projAnalysis pt
+    dGroups              = demandGroups $ gatherProg (prots, tMap) pAnal $ tfst pt
+    callEnv              = map demSpec dGroups
+
+demSpec :: (Id, [(Context, S.Set Calls)]) -> (String, M.Map Context String)
+demSpec (n, [_])                                  = (n, M.empty)
+demSpec (n, xs)
+    | (not noCalls || not sameSet) && not singRec = (n, specNames n (map fst xs))
+    | otherwise                                   = (n, M.empty)
   where
     noCalls = and $ map (S.null . snd) xs
     sets    = map snd xs
     sameSet = all ((head sets) ==) sets
+    singRec = all (== n) $ fmap fst $ S.toList $ head sets -- See if the function only calls itself
+
+specNames :: String -> [Context] -> M.Map Context String
+specNames n cs = M.fromList $ zip cs' ns
+  where
+    n'   = n ++ "_D"
+    nums = map show [1..]
+    cs'  = sort cs
+    ns   = map (n' ++) $ zipWith const nums cs'
+
+needsDemSpec :: (Id, [(Context, S.Set Calls)]) -> Bool
+needsDemSpec (_, [])  = False
+needsDemSpec (_, [_]) = False
+needsDemSpec (n, xs)  = (not noCalls || not sameSet) && not singRec
+  where
+    noCalls = and $ map (S.null . snd) xs
+    sets    = map snd xs
+    sameSet = all ((head sets) ==) sets
+    singRec = all (== n) $ fmap fst $ S.toList $ head sets -- See if the function only calls itself
 
 {- The idea here is to take the raw information from 'gatherProg' and turn it into
  - a more easily processed form. So we pair each function in the program with all
@@ -83,14 +121,6 @@ fixSet' f p = let p' = f p in
                    True  -> p'
                    False -> fixSet' f p'
 
-
--- We represent a 'call-demand' as the name of the function
--- along with the required demand on its result
-type Calls = (String, Context)
-
-type BodyCalls = (String, Context, S.Set Calls)
-
-type GathEnv = ([CDataDec], FTypes)
 
 --gather1 :: GathEnv -> FunEnv -> Prog -> [(String, Context)] -> S.Set (String, Context)
 gatherProg env phi decs = fixSet' (concatMapSet f) (S.singleton (("main", CProd []), S.empty))
@@ -226,3 +256,53 @@ lookupCT' (phi, env) n c = firstJust' err [ (id,                                
                             "\n\n" ++ show (n, evalToBot k) ++
                             "\n\n" ++ show (n, k2) ++
                             "\n\n" ++ show (n, norm c)
+
+specCalls :: CallEnv -> GathEnv -> FunEnv -> Context -> Exp -> (Exp, ValEnv)
+specCalls c env phi k (Var n)      = (Var n, M.singleton n k)
+specCalls c env phi k (Int n)      = (Int n, M.empty)
+specCalls c env phi k (Con n)      = (Con n, M.empty)
+specCalls c env phi k (Freeze e)   = let (e', phi') = specCalls c env phi (dwn k) e
+                                   in  (Freeze e', k ##> phi')
+specCalls c env phi k (Unfreeze e) = specCalls c env phi (CStr k) e
+specCalls c env phi k e@((Con n) `App` as)
+    | null as   = (e, M.singleton "ε" $ emptySeq k)
+    | otherwise = ((Con n) `App` as', conjs phis)
+      where
+        res         = zipWith (specCalls c env phi) (children $ out' (fst env) n $ unfold k) as
+        (as', phis) = unzip res
+specCalls c env phi k ((Fun n) `App` as)
+    | isPrim n  = let res = zipWith (specCalls c env phi) (children $ primTrans `lookupPrim` k) as
+                      (as', phis) = unzip res
+                  in ((Fun n) `App` as', conjs phis)
+    | null as   = ((Fun n) `App` [], M.singleton "ε" $ emptySeq k)
+    | otherwise = let res =  zipWith (specCalls c env phi) (children $ ct) as
+                      (as', phis) = unzip res
+                  in ((Fun n') `App` as', conjs phis)
+  where
+    (k', ct) = lookupCT' (phi, env) n k
+    n'       = fromMaybe n (M.lookup k' (fromJust $ lookup n c)) -- n will always be in c
+specCalls c env phi k (Case e alts) =
+        let (rets , ks)     = unzip $ map specCallsAlts alts
+            (alts', fEnvs) = unzip rets
+            newK = foldr1 (\/) ks
+            (e2, funEnv) = specCalls c env phi newK e
+        in (Case e2 alts', (meets fEnvs) \/# funEnv)
+  where
+    specCallsAlts (pat@(App (Con n) as), alt) =
+            let (alt', p) = specCalls c env phi k alt
+                p'        = deletes (freeVars pat) p
+                CProd cs = mkAbs $ prot (fst env) n
+                prod = CProd $ zipWith fromMaybe cs (map (lookupVar p) as)
+                k' = if null as
+                     then foldUp (fst env) $ inC n (CProd []) $ fst env --TODO: Should it always be CProd []?
+                     else foldUp (fst env) $ inC n prod $ fst env
+            in (((pat, alt'), p'), k')
+specCalls c env phi k (Let [(b, e1)] e) =
+        let (e', p) = specCalls c env phi k e
+            p'      = b `M.delete` p
+        in case b `M.lookup` p of
+                Just v  -> let (e1', p1) = specCalls c env phi (dwn v) e1
+                           in (Let [(b, e1')] e', p' &# (v ##> p1))
+                Nothing -> (Let [(b, e1)] e', p')
+specCalls c env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
+specCalls c env phit k e         = error $ "Non-exhaustive: " ++ show e
