@@ -10,6 +10,7 @@ for Projections analysis.
 >     , PDataDec(..)
 >     , expandLhs
 >     , mkLhsTExp
+>     , remFreeze
 >     ) where
 
 
@@ -290,3 +291,11 @@ expanded, and lazified data-types; and the types of the top-level functions
 >         lFuncs   = lazifyFuncs desuged
 >         (ts, ds) = tcheck $ desuged ++ [Data i as cs | Data i as cs <- decs]
 >         lData    = lazifyData $ expandAll $ convertDT $ ds
+
+For when we're done
+
+> remFreeze :: Prog -> Prog
+> remFreeze p = [Func n as (transform f e) | Func n as e <- p]
+>   where f (Freeze e)   = e
+>         f (Unfreeze e) = e
+>         f v            = v
