@@ -105,9 +105,13 @@ isPrimId p = isBinaryPrim p || isUnaryPrim p
 isBinaryPrim :: Id -> Bool
 isBinaryPrim "(+)"  = True
 isBinaryPrim "(-)"  = True
+isBinaryPrim "(*)"  = True
 isBinaryPrim "(==)" = True
 isBinaryPrim "(/=)" = True
 isBinaryPrim "(<=)" = True
+isBinaryPrim "(>=)" = True
+isBinaryPrim "(<)" = True
+isBinaryPrim "(>)" = True
 isBinaryPrim _      = False
 
 isUnaryPrim :: Id -> Bool

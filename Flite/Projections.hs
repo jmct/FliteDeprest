@@ -122,14 +122,14 @@ mapToProd as ds m = CProd res
     res = zipWith fromMaybe ds l1
 
 prims :: [String] --List of primitive operators in F-lite
-prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)"]
+prims = ["(+)", "(-)", "(==)", "(/=)", "(<=)", "(>)", "(>=)", "(<)", "(*)"]
 
 primTrans :: M.Map Context Context
 primTrans = M.fromList
   [ (CBot,                                        CProd [CStr CBot,       CStr CBot])
   , (CProd [],                                    CProd [CStr (CProd []), CStr (CProd [])])
-  , (CSum [("True",CProd []),("False",CProd [])], CProd [CStr (CProd []), CStr (CProd [])])
-  , (CSum [("True", CBot),   ("False",CProd [])], CProd [CStr (CBot),     CStr (CBot)])
+  , (CSum [("True",CProd []),("False",CProd [])], CProd [CStr (CProd []), CLaz (CProd [])])
+  , (CSum [("True", CBot),   ("False",CProd [])], CProd [CStr (CBot),     CLaz (CBot)])
   , (CSum [("True",CProd []),("False",CBot)],     CProd [CStr (CBot),     CStr (CBot)])
   , (CSum [("True", CBot),   ("False",CBot)],     CProd [CStr (CBot),     CStr (CBot)])
   ]
