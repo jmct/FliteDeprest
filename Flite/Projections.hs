@@ -22,6 +22,7 @@ import Flite.Writer
 import Control.Applicative
 import Control.Monad
 import qualified Data.Map.Strict as M
+import Debug.Trace
 
 
 -- A mapping from the name of a function to its argument and result types
@@ -49,6 +50,7 @@ projAnalysis (prog, dataTypes, funTypes) = (anal, prots, tMap)
 
 analyseCallGroup :: [CDataDec] -> FTypes -> FunEnv -> [(Decl, Bool)] -> FunEnv
 analyseCallGroup prots tMap phi [(f@(Func n _ _), isR)]
+    | trace ("analysing " ++ n) False = undefined
     | isR       = (fixMap runRec phi) `M.union` phi
     | otherwise = (M.fromList $ map (runIt phi) conts) `M.union` phi
   where 
@@ -59,6 +61,7 @@ analyseCallGroup prots tMap phi [(f@(Func n _ _), isR)]
     getDecl (NCons n ars) = lookupByName n $ prots
     runRec p   = M.fromList $ map (runIt p) conts
 analyseCallGroup prots tMap phi decs
+    | trace ("analysing " ++ concat (map (funcName . fst) decs)) False = undefined
 analyseCallGroup prots tMap phi decs = phi `M.union` (fixMap (go decs') phi)
   where
     decs'       = map fst decs
@@ -82,6 +85,7 @@ analyseFunc (Func n as rhs, tMap) env phi k = ((n, k'), mapToProd as defAbs anal
 -- Run a computation on a FunEnv until a fixed point is reached
 fixMap :: (Ord k, Eq k, Eq a) => (M.Map k a -> M.Map k a) -> M.Map k a -> M.Map k a
 fixMap f p
+    | trace ("One iter\n") False = undefined
 fixMap f p = let p' = M.union (f p) p in
                  case p' == p of
                    True  -> p'
@@ -511,7 +515,7 @@ approxS env phi k (Let [(b, e1)] e) = res
                       Just v  -> p' &# (v ##> approxS env phi (dwn v) e1)
                       Nothing -> p'
 approxS env phi k (Let bs e) = error $ "Static analysis only works on flat Let expressions" ++ show bs
-approxS env phit k e         = error $ "Non-exhaustive: " ++ show e
+approxS env phit k e         = error $ "Non-exhaustive approxS: " ++ show e
 
 newVEnvs' env phi k (Case e alts) = map (mergeAlt' env phi k e . approxSAlts' env phi k) alts
 mergeAlt' env phi k e (a, b) = a &# (approxS env phi b e)
