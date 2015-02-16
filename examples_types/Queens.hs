@@ -45,7 +45,7 @@ toOne n = case (==) n 1 of {
             False -> Cons n (toOne ((-) n 1));
           };
 
-main = emitInt (nsoln 10) 0;
+main = nsoln 10;
 
 }
 

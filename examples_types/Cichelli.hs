@@ -1,11 +1,11 @@
 {
 
-data Hash a b = Hash a b;
-data H a b c = H a b c;
-data K a b c d = K a b c d;
+data Hashe a b = Hash a b;
+data He a b c = H a b c;
+data Ka a b c d = K a b c d;
 data List a  = Nil | Cons a (List a); 
 data Maybe a = Nothing | Just a;
---data Pair a b = Pair a b;
+data P a b = Pair a b;
 
 min m n = case ((<=) m n) of { True -> m ; False -> n ; } ;
 

@@ -1,11 +1,11 @@
 {
-data Hash a b  = Hash a b;
-data H a b c   = H a b c;
-data K a b c d = K a b c d;
-data List a    = Cons a (List a) | Nil; 
-data Maybe a   = Just a | Nothing;
-data Bool      = False | True ;
-data Pair a b  = Pair a b;
+data Ha a b      = Hash a b;
+data He a b c    = H a b c;
+data Kay a b c d = K a b c d;
+data List a      = Cons a (List a) | Nil;
+data Maybe a     = Just a | Nothing;
+data Bool        = True | False ;
+data P a b       = Pair a b;
 
 min m n = case ((<=) m n) of { True -> m ; False -> n ; } ;
 
@@ -165,12 +165,9 @@ cichelli ss = case freqSorted (map enKey ss) of {
               Pair ks mv -> findhash mv (blocked ks) ;
               } ;
 
-emitStr Nil k = k;
-emitStr (Cons x xs) k = emit x (emitStr xs k);
-
 main = case cichelli keywords of {
-       Just hf -> emitHashFun hf ;
-       Nothing -> emitStr "no solution" 0 ;
+       Just hf -> hf ;
+       Nothing -> (Cons (Pair '0' '0') Nil) ;
        } ;
 
 emitHashFun Nil = 0 ;

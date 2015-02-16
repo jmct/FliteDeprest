@@ -1,11 +1,11 @@
 {
 
-data Prop     = And Prop Prop | Const Bool | Implies Prop Prop | Not Prop | Var Int ;
 data List a   = Cons a (List a) | Nil; 
-data Pair a b = Pair a b;
-data Bool     = False | True ;
+data Pair a b = P a b;
+data Bool     = True | False;
+data Prop     = And Prop Prop | Const Bool | Implies Prop Prop | Not Prop | Var Int ;
 
-find key (Cons (Pair k v) t) = case (==) key k of {
+find key (Cons (P k v) t) = case (==) key k of {
                                True  -> v ;
                                False -> find key t ;
                                } ;
@@ -76,7 +76,7 @@ null (Cons x xs) = False;
 
 zip Nil         ys          = Nil ;
 zip (Cons x xs) Nil         = Nil ; 
-zip (Cons x xs) (Cons y ys) = Cons (Pair x y) (zip xs ys) ;
+zip (Cons x xs) (Cons y ys) = Cons (P x y) (zip xs ys) ;
 
 foldr1 f (Cons x xs) = case null xs of {
                        True  -> x ;
@@ -92,8 +92,8 @@ testProp = Implies
              (Implies (Var 'p') (foldr1 And (map Var names))) ;
 
 main = case isTaut testProp of {
-       True  -> emit 'T' 1 ;
-       False -> emit 'F' 0 ;
+       True  -> 1 ;
+       False -> 0 ;
        } ;
 
 }

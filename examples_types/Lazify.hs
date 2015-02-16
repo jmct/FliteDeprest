@@ -18,7 +18,7 @@ map f (Cons x xs) = Cons (f x) (map f xs);
 
 superTrue x = True;
 
-fst (MkPr x y) = x;
+fst (MkPr x y) = let { z = x; } in z;
 
 snd (MkPr x y) = y;
 

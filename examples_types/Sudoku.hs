@@ -1,8 +1,8 @@
 {
 
-data Bool       = False  | True;
+data Bool       = True  | False;
 data List a     = Cons a (List a)| Nil; 
-data Pair a b   = Pair a b;
+data Pair a b   = P a b;
 
 del x Nil = Nil;
 del x (Cons y ys) =
@@ -31,11 +31,11 @@ minimum (Cons x xs) = min x xs;
 min m Nil = m;
 min m (Cons x xs) = case (<=) x m of { True -> min x xs ; False -> min m xs };
 
-break p Nil = Pair Nil Nil;
+break p Nil = P Nil Nil;
 break p (Cons x xs) =
   case p x of {
-    True -> Pair Nil (Cons x xs);
-    False -> case break p xs of { Pair ys zs -> Pair (Cons x ys) zs };
+    True -> P Nil (Cons x xs);
+    False -> case break p xs of { P ys zs -> P (Cons x ys) zs };
   };
 
 filter p Nil = Nil;
@@ -148,9 +148,9 @@ best n cs = (==) (length cs) n;
 expand cm =
   let { n = minchoice cm } in
     case break (any (best n)) cm of {
-      Pair rows1 rows2 ->
+      P rows1 rows2 ->
         case break (best n) (head rows2) of {
-          Pair row1 row2 -> map (exp row1 row2 rows1 rows2) (head row2);
+          P row1 row2 -> map (exp row1 row2 rows1 rows2) (head row2);
         };
     };
 
@@ -180,7 +180,7 @@ emitRow (Cons x xs) k = emitInt x (emit ' ' (emitRow xs k));
 emitMatrix Nil k = k;
 emitMatrix (Cons x xs) k = emitRow x (emitMatrix xs k);
 
-main = emitMatrix (head (
+main = head (
        sudoku (Cons (Cons 0 (Cons 0 (Cons 0
                     (Cons 0 (Cons 0 (Cons 3
                     (Cons 0 (Cons 6 (Cons 0 Nil)))))))))
@@ -208,6 +208,6 @@ main = emitMatrix (head (
               (Cons (Cons 0 (Cons 5 (Cons 0
                     (Cons 1 (Cons 0 (Cons 0
                     (Cons 0 (Cons 0 (Cons 0 Nil)))))))))
-               Nil))))))))))) 0;
+               Nil))))))))));
 
 }
