@@ -7,9 +7,9 @@ import Flite.Descend
 import Flite.WriterState
 import Control.Monad
 
--- Introduces functions of the form "f^N" where is is a natural
+-- Introduces functions of the form "fLLN" where is is a natural
 -- number.  Therefore assumes function identifiers do not already
--- contain '^' character.
+-- contain 'L' character.
 
 lambdaLift :: Char -> Prog -> Prog
 lambdaLift c = concatMap (liftDecl c)
@@ -27,7 +27,7 @@ lift c f (Lam vs e) =
   do let ws = filter (`notElem` vs) (freeVars e)
      i <- get
      set (i+1)
-     let f' = f ++ "^" ++ c : show i
+     let f' = f ++ "LL" ++ c : show i
      e' <- lift c f e
      write (Func f' (map Var (ws ++ vs)) e')
      return (App (Fun f') (map Var ws))

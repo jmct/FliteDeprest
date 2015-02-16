@@ -53,15 +53,14 @@ flicM p =
              >>= desugarCase
              >>= onExpM freshen
              >>= inlineLinearLet
-             >>= inlineSimpleLet
              >>= return . joinApps
              >>= return . spjCtrNotation
-     return (prettyProg p0)
+     return (prettyCore p0)
 
 spjCtrNotation :: Prog -> Prog
 spjCtrNotation p = onExp trCtr p
   where
-    fs = ctrFamilies p
+    fs = ["Unit"]:ctrFamilies p
     m  = [(c, i) | fam <- fs, (c, i) <- zip fam [0..]]
 
     trCtr (Con c) = Con ("Pack{" ++ show (m!c) ++ ",0}")

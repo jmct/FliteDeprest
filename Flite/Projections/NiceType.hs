@@ -26,9 +26,11 @@ m ! k = case lookup k m of
         throws an error, then varMap has the bug
  -}
 
-retNiceType :: NiceType -> NiceType
-retNiceType (NArrow _ t) = retNiceType t
-retNiceType t            = t
+retNiceType :: NiceType -> ([NiceType], NiceType)
+retNiceType t = go ([], t)
+  where
+    go (as, NArrow t1 t2) = go (t1:as, t2)
+    go (as, t)            = (reverse as, t)
 
 toNiceType :: Type_exp -> NiceType
 toNiceType t = toNiceType' m t

@@ -1,6 +1,14 @@
 module Flite.Writer where
+import Control.Applicative
 
 data Writer w a = W [w] a
+
+instance Functor (Writer w) where
+  fmap f (W w x) = W w (f x)
+
+instance Applicative (Writer w) where
+  pure a = W [] a
+  W w f <*> W w' x = W (w ++ w') (f x)
 
 instance Monad (Writer w) where
   return a = W [] a

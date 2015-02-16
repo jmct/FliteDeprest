@@ -14,7 +14,7 @@ import Debug.Trace
 type Request = (Id, Exp)
 type Replacement = (Exp, Exp) -- (from, to)
 
-
+specSep = "Def"
 
 defunctionalise :: Prog -> Prog
 defunctionalise p = defunctionalise' p
@@ -47,7 +47,7 @@ defuncExp p e@( App (Fun id1) ( (Fun id2):as ) )
         -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
-            id1' = id1 ++ "^" ++ id2
+            id1' = id1 ++ specSep ++ id2
             args' = as
             rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (Con id2):as ) ) 
@@ -55,7 +55,7 @@ defuncExp p e@( App (Fun id1) ( (Con id2):as ) )
         -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
-            id1' = id1 ++ "^" ++ id2
+            id1' = id1 ++ specSep ++ id2
             args' = as
             rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (App (Fun id2) args2):as ) )
@@ -63,7 +63,7 @@ defuncExp p e@( App (Fun id1) ( (App (Fun id2) args2):as ) )
         -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
-            id1' = id1 ++ "^" ++ id2
+            id1' = id1 ++ specSep ++ id2
             args' = args2 ++ as
             rqs = [ (id1', e) ]
 defuncExp p e@( App (Fun id1) ( (App (Con id2) args2):as ) )
@@ -71,7 +71,7 @@ defuncExp p e@( App (Fun id1) ( (App (Con id2) args2):as ) )
         -- trace ("Submitted request: " ++ show rqs) $
         (App (Fun id1') args', rqs)
         where
-            id1' = id1 ++ "^" ++ id2
+            id1' = id1 ++ specSep ++ id2
             args' = args2 ++ as
             rqs = [ (id1', e) ]
 defuncExp p e = (e, [])

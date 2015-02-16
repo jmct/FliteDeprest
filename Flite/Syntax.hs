@@ -105,9 +105,13 @@ isPrimId p = isBinaryPrim p || isUnaryPrim p
 isBinaryPrim :: Id -> Bool
 isBinaryPrim "(+)"  = True
 isBinaryPrim "(-)"  = True
+isBinaryPrim "(*)"  = True
 isBinaryPrim "(==)" = True
 isBinaryPrim "(/=)" = True
 isBinaryPrim "(<=)" = True
+isBinaryPrim "(>=)" = True
+isBinaryPrim "(<)" = True
+isBinaryPrim "(>)" = True
 isBinaryPrim _      = False
 
 isUnaryPrim :: Id -> Bool
@@ -118,3 +122,12 @@ isUnaryPrim _ = False
 
 isPredexId :: Id -> Bool
 isPredexId = isBinaryPrim
+
+lookupDec :: String -> Prog -> Maybe Decl
+lookupDec n [] = Nothing
+lookupDec n (d@(Data n' _ _):ds)
+    | n == n'   = Just d
+    | otherwise = lookupDec n ds
+lookupDec n (f@(Func n' _ _):ds)
+    | n == n'   = Just f
+    | otherwise = lookupDec n ds
