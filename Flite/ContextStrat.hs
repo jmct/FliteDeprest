@@ -8,7 +8,6 @@ import Flite.Syntax
 import Flite.Fresh
 import Flite.Projections
 import Flite.Projections.Contexts
-import Debug.Trace
 
 {-
  - Let's remind ourselves of the Context ADT:
@@ -93,8 +92,7 @@ appChainDec ((c, v):cvs) = do
 -- FANCY LAMBDA VERSION THAT DOESN'T SEEM TO WORK
 --
 -- Wrapper to expose pure version
-stratefy c = trace s $ runFresh (stratefy' c) "S" 0
-  where s = "\n\n" ++ show c
+stratefy c = runFresh (stratefy' c) "S" 0
 
 
 -- Convert a Context to a Strategy
