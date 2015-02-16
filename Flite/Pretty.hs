@@ -15,6 +15,9 @@ prettyProg :: Prog -> String
 prettyProg = show . braces . enclose line line .
              indent 2 . vsep . punctuate (semi <> line) . map pretty
 
+prettyCore :: Prog -> String
+prettyCore = show . vsep . punctuate (semi <> line) . map pretty
+
 instance Pretty Decl where
 	pretty (Func f a r) = nest 2 $ text f
 						<+> hsep (map prettyArg a)
@@ -26,7 +29,7 @@ instance Pretty Exp where
       | isPrimId f      = parens $ hsep [pretty x, unBracket f, pretty y]
     pretty (App x ys)   = hsep (prettyArg2 x : map prettyArg ys)
     pretty (Case x as)	= nest 2 (text "case" </> prettyArg x)
-                                 </> nest 2 (text "of" </> prettyBlock prettyAlt as)
+                                 </> nest 2 (text "of" </> prettyBlockBrace prettyAlt as)
     pretty (Let bs y)	= nest 2 (text "let" </> prettyBlock prettyBind bs)
                                  </> nest 2 (text "in" </> prettyArg y)
     pretty (Lam vs x)	= nest 2 (text "\\" <> (hsep . map text $ vs) </> text "->" </> pretty x)
@@ -72,7 +75,10 @@ showfuntypes (fts,decls) =  (map showfuntype fts , decls )
 showfuntype (f,t) =  (f,t)--f ++ " :: " ++ (show t) ++ "\n"
 
 prettyBlock :: (a -> Doc) -> [a] -> Doc
-prettyBlock f = braces . enclose line line . vsep . punctuate semi . map f
+prettyBlock f = enclose line line . vsep . punctuate semi . map f
+
+prettyBlockBrace :: (a -> Doc) -> [a] -> Doc
+prettyBlockBrace f = braces . enclose line line . vsep . punctuate semi . map f
 
 prettyAlt :: Alt -> Doc
 prettyAlt (p, x) = nest 2 $ pretty p <+> text "->" </> pretty x

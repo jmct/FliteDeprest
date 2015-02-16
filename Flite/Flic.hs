@@ -55,7 +55,7 @@ flicM p =
              >>= inlineLinearLet
              >>= return . joinApps
              >>= return . spjCtrNotation
-     return (prettyProg p0)
+     return (prettyCore p0)
 
 spjCtrNotation :: Prog -> Prog
 spjCtrNotation p = onExp trCtr p
