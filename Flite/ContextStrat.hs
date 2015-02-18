@@ -40,8 +40,8 @@ stratefySCs :: Int -> Context -> (Int, [(Context, Decl)])
 stratefySCs i c = (j, decs)
   where (decs, j, _) = runFreshW (stratefyDec c) "St" i
 
--- NEW WAY THAT IS SCARY
---
+-- Turns out we're not using this version anymore.
+-- TODO: Cleanup/remove or justify existence
 --
 --
 stratefyDec :: Context -> FreshW (Context, Decl) Exp
@@ -89,7 +89,8 @@ appChainDec ((c, v):cvs) = do
     return $ App (Fun "seq") [App s [v], ss]
 
 --
--- FANCY LAMBDA VERSION THAT DOESN'T SEEM TO WORK
+-- Lambda version now works because unlocking of partial apps was fixed
+-- in the RTS
 --
 -- Wrapper to expose pure version
 stratefy c = runFresh (stratefy' c) "S" 0
@@ -122,8 +123,11 @@ stratefyAlt (n, CProd cs) = do
 
 appChain :: [(Context, Exp)] -> Fresh Exp
 appChain []           = return $ App (Con "Unit") []
+appChain ((c, v):[]) = do
+    l  <- stratefy' c
+    return $ App (Fun "seq") [App l [v], App (Con "Unit") []]
 appChain ((c, v):cvs) = do
     l  <- stratefy' c
     ls <- appChain cvs
-    return $ App (Fun "seq") [App l [v], ls]
+    return $ App (Fun "par") [App l [v], ls]
 
