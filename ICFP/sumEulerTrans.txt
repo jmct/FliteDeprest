@@ -1,0 +1,157 @@
+
+============================================================
+== euler
+============================================================
+CBot
+        ==> CProd [CLaz (CProd [])]
+CProd []
+        ==> CProd [CLaz (CProd [])]
+
+
+============================================================
+== filterDefrelPrime
+============================================================
+CMu "" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "")]),("Nil",CBot)])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CLaz (CProd []),CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+
+============================================================
+== fromto
+============================================================
+CMu "" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CProd []),CLaz (CProd [])]
+
+
+============================================================
+== gcd
+============================================================
+CBot
+        ==> CProd [CLaz (CProd []),CStr (CProd [])]
+CProd []
+        ==> CProd [CLaz (CProd []),CStr (CProd [])]
+
+
+============================================================
+== ifte
+============================================================
+CVar ""
+        ==> CProd [CStr (CSum [("True",CProd []),("False",CProd [])]),CLaz (CVar "a"),CLaz (CVar "a")]
+
+
+============================================================
+== length
+============================================================
+CBot
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz CBot,CStr (CRec "List")]),("Nil",CProd [])]))]
+CProd []
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz CBot,CStr (CRec "List")]),("Nil",CProd [])]))]
+
+
+============================================================
+== mapDefeuler
+============================================================
+-- Bottom
+CMu "" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "List")]),("Nil",CProd [])]))]
+
+-- Only accepts finite lists (Hyperstrict in elements)
+CMu "" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "List")]),("Nil",CProd [])]))]
+
+-- Head + Tail strict
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "List")]),("Nil",CProd [])]))]
+
+-- Head strict but must be infinite
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+-- Traditional head-strict
+CMu "" (CSum [("Cons",CProd [CStr (CProd []),CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+-- Finite lists, lazy elements
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "List")]),("Nil",CProd [])]))]
+
+-- 'Absent' lists
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+-- Absent but OK to be finite lists
+CMu "" (CSum [("Cons",CProd [CLaz CBot,CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+-- Traditional tail strict
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CStr (CRec "List")]),("Nil",CProd [])]))]
+
+-- Lazy infinite lists
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "")]),("Nil",CBot)])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+-- ID
+CMu "" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "")]),("Nil",CProd [])])
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CLaz (CProd []),CLaz (CRec "List")]),("Nil",CProd [])]))]
+
+
+============================================================
+== relPrime
+============================================================
+CSum [("True",CBot),("False",CBot)]
+        ==> CProd [CLaz (CProd []),CStr (CProd [])]
+CSum [("True",CBot),("False",CProd [])]
+        ==> CProd [CLaz (CProd []),CStr (CProd [])]
+CSum [("True",CProd []),("False",CBot)]
+        ==> CProd [CLaz (CProd []),CStr (CProd [])]
+CSum [("True",CProd []),("False",CProd [])]
+        ==> CProd [CLaz (CProd []),CStr (CProd [])]
+
+
+============================================================
+== sum
+============================================================
+CBot
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CStr CBot,CStr (CRec "List")]),("Nil",CProd [])]))]
+CProd []
+        ==> CProd [CStr (CMu "List" (CSum [("Cons",CProd [CStr (CProd []),CStr (CRec "List")]),("Nil",CProd [])]))]
