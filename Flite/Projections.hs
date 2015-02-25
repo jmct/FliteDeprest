@@ -337,7 +337,7 @@ firstJust = foldr f
 -- `blankContext` and we have to make sure the context is as general as possible
 -- (Defintion 7.6 in Hinze's work)
 lookupCT :: (FunEnv, CompEnv) -> String -> Context -> Context
-lookupCT (phi, env) n c = firstJust safe [ (id,                                 M.lookup (n, blankContext c) phi)
+lookupCT (phi, env) n c = firstJust err [ (id,                                 M.lookup (n, blankContext c) phi)
                                         , (evalContxt varMap,                  M.lookup (n, k) phi)
                                         , (evalContxt (mapRange mkBot varMap), M.lookup (n, evalToBot k) phi)
                                         , (id,                                 M.lookup (n, k2) phi)
@@ -359,7 +359,7 @@ lookupCT (phi, env) n c = firstJust safe [ (id,                                 
                             "\n\n" ++ show (n, k2) ++
                             "\n\n" ++ show (n, norm c)
 
-getID :: FunEnv -> String -> Context
+getID :: CompEnv -> String -> Context
 getID env n = case M.lookup n fTypes of
                     Just (_, rt) -> getCont prots rt
                     Nothing      -> error $ "Trying to lookupCT of undefined fun " ++ n
@@ -413,8 +413,8 @@ getFullBot (CSum xs)  (CSum ys)  = CSum $ zipWRange getFullBot xs ys
 getFullBot (CMu _ x)  (CMu r y)  = CMu r $ getFullBot x y
 getFullBot x          y
     | isLifted x && isLifted y = getLift y $ getFullBot (dwn x) (dwn y)
-    | otherwise                = error $ ":&:'s and :+:'s should be removed by this point\nx: " ++
-                                         show x ++ "\n\ny: " ++ show y
+    | otherwise                = error $ "Non-matching contexts in getFullBot\nx: " ++
+                                        show x ++ "\n\ny: " ++ show y
 
 
 -- Take a context and return the appropriate version for an empty sequence
