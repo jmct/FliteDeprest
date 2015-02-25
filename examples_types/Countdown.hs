@@ -2,7 +2,9 @@
 
 data Op = Add | Sub | Mul | Div;
 data List a  = Cons a (List a)|Nil; 
+data Bool    = True | False;
 data Expr = Val Int | App Op Expr Expr;
+data P a b = Pair a b;
 
 valid Add x y  =  True ;
 valid Sub x y  =  not ((<=) x y) ;
@@ -27,10 +29,11 @@ perms (Cons x xs) =  concatMap (interleave x) (perms xs) ;
 choices xs  =  concatMap perms (subs xs) ;
 
 
+split Nil          = Nil;
 split (Cons x xs)  =  case null xs of {
                       True  -> Nil ;
                       False -> Cons (Pair (Cons x Nil) xs)
-                                    (map (cross (Pair (Cons x) id)) (split xs)) ;
+                                    (map (cross (Cons x)) (split xs)) ;
                       } ;
 
 results Nil         =  Nil ;
@@ -92,7 +95,7 @@ mul x n = case (==) n 1 of {
                    } ;
           } ;
 
-cross (Pair f g) (Pair x y) = Pair (f x) (g y) ;
+cross f (Pair x y) = Pair (f x) y ;
 
 id x = x ;
 
@@ -114,7 +117,6 @@ concatMap f (Cons x xs) = append (f x) (concatMap f xs) ;
 main =
   let {
     givens = Cons 1 (Cons 3 (Cons 7 (Cons 10 (Cons 25 Nil))));
-    target = 765;
-  } in (emitInt (length (solutions givens target)) 0) ;
+  } in length (solutions givens 765);
 
 }
