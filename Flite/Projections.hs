@@ -337,7 +337,7 @@ firstJust = foldr f
 -- `blankContext` and we have to make sure the context is as general as possible
 -- (Defintion 7.6 in Hinze's work)
 lookupCT :: (FunEnv, CompEnv) -> String -> Context -> Context
-lookupCT (phi, env) n c = firstJust err [ (id,                                 M.lookup (n, blankContext c) phi)
+lookupCT (phi, env) n c = firstJust safe [ (id,                                 M.lookup (n, blankContext c) phi)
                                         , (evalContxt varMap,                  M.lookup (n, k) phi)
                                         , (evalContxt (mapRange mkBot varMap), M.lookup (n, evalToBot k) phi)
                                         , (id,                                 M.lookup (n, k2) phi)
@@ -351,12 +351,22 @@ lookupCT (phi, env) n c = firstJust err [ (id,                                 M
     k            = blankContext $ c'
     (varMap, c') = getGenCont retCont c
     k2           = blankContext $ getFullBot retCont c
+    safe         = trace ("Using safe approximation of (mkAbs)" ++ show c) $ getID env n
     err          = error $ "\nTrying to look up\n\n" ++ show (n, blankContext c) ++
                             " in lookupCT\n" ++
                             "\n\n" ++ show (n, k) ++
                             "\n\n" ++ show (n, evalToBot k) ++
                             "\n\n" ++ show (n, k2) ++
                             "\n\n" ++ show (n, norm c)
+
+getID :: FunEnv -> String -> Context
+getID env n = case M.lookup n fTypes of
+                    Just (_, rt) -> getCont prots rt
+                    Nothing      -> error $ "Trying to lookupCT of undefined fun " ++ n
+  where
+    prots  = fst env
+    fTypes = snd $ snd env
+
 
 evalToBot :: Context -> Context
 evalToBot = transform f
