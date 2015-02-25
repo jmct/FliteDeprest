@@ -150,7 +150,7 @@ isRec (CSum cs) ds = isMu dec
 foundIn :: String -> [CDataDec] -> CDataDec
 foundIn n ds = case pos of
                    Just i  -> ds !! i --guaranteed to be in bounds since findIndex works on list of same length
-                   Nothing -> error "Trying to insert a constructor into its sum-type when constructor was never defined"
+                   Nothing -> error $ "foundIn couldn't find: " ++ n ++ " in prots"
     where cons d = concat [cs | (CSum cs) <- universe d]
           pos    = findIndex id $ map (any ((== n) . fst) . cons . cDataCont) ds
 
@@ -420,8 +420,7 @@ CBot & c                = CBot
         y1 = CVar "y1"
         y2 = CVar "y2"
         top = y1 :+: y1 :&: y2 :+: y2
-x & y                   = x :&: y
---x & y = error $ "\n\nThe 'lubA' contexts found no match... This is very impossible\n\nx: " ++ show x ++ "\ny: " ++ show y
+x & y                   = error $ "\n\nThe 'lubA' contexts found no match... This is very impossible\n\nx: " ++ show x ++ "\ny: " ++ show y
 
 
 -- infix 1 <~
