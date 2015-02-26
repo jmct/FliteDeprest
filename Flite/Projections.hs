@@ -518,6 +518,7 @@ approxS env phi k (Case e alts) = meets newVEnvs
                   k' = if null as
                        then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
                        else foldUp (fst env) $ inC c prod $ fst env
+          approxSAlts (pat@(Con c), alt) = approxSAlts (App (Con c) [], alt)
 approxS env phi k (Let [(b, e1)] e) = res
     where p   = approxS env phi k e
           p'  = b `M.delete` p

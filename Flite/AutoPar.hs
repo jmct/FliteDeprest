@@ -27,12 +27,26 @@ type GathEnv = ([CDataDec], FTypes)
 
 type CallEnv = [(String, M.Map Context String)]
 
+-- Cleanup patterns that don't conform to Wadler's (App p ps) structure
 
-parProg o converted = parred
+lintEqs :: Prog -> Prog
+lintEqs ds = [Func n as (lintEq e) | Func n as e <- ds]
+
+lintEq :: Exp -> Exp
+lintEq = transform f
   where
-    prog                 = tfst converted
-    (pAnal, prots, tMap) = projAnalysis converted
-    s2                   = gatherProg (prots, tMap) pAnal (tfst converted)
+    f (Case e as) = Case e $ map lintEq' as
+      where
+        lintEq' :: (Pat, Exp) -> (Pat, Exp)
+        lintEq' (Con v, e) = (App (Con v) [], e)
+        lintEq' eq            = eq
+    f exp          = exp
+
+parProg o (p, ds, ts) = parred
+  where
+    prog                 = lintEqs p
+    (pAnal, prots, tMap) = projAnalysis (prog, ds, ts)
+    s2                   = gatherProg (prots, tMap) pAnal prog
     dGroups              = demandGroups s2
     (callEnv, renames)   = unzip $ map demSpec dGroups
     prog'                = [Func n as (spec n e) | Func n as e <- cloneFuncsD prog callEnv]
@@ -280,6 +294,7 @@ gatherCalls env phi k (Case e alts) = do
                      then foldUp (fst env) $ inC c (CProd []) $ fst env --TODO: Should it always be CProd []?
                      else foldUp (fst env) $ inC c prod $ fst env
             return (p', k')
+    gatherCallsAlts (pat, alt) = error $ show pat
 gatherCalls env phi k (Let [(b, e1)] e) = do
         p <- gatherCalls env phi k e
         let p'  = b `M.delete` p
