@@ -37,10 +37,13 @@ parProg o converted = parred
     (callEnv, renames)   = unzip $ map demSpec dGroups
     prog'                = [Func n as (spec n e) | Func n as e <- cloneFuncsD prog callEnv]
     funDems              = concatMap (flattenDems dGroups) callEnv
-    getK n               = fromJust $ lookup n funDems
+    getK n               = fromJustpp $ lookup n funDems
     spec n e             = fst $ specCalls callEnv (prots, tMap) pAnal (getK n) e
     parIt n e            = fst . snd $ runFresh (placePar (concat renames, o) (prots, tMap) pAnal (getK n) e) "P" 0
     parred               = [Func n as (parIt n e) | Func n as e <- prog']
+
+fromJustpp (Just x) = x
+fromJustpp Nothing  = error "It was the one in parProg"
 
 -- The ParEnv is where we store the mapping from the specialised functions to their
 -- original names (so that we can look them up, and the very important oracle that
@@ -116,8 +119,11 @@ cloneFuncsD p dems = concatMap clone p
 flattenDems :: [(Id, [(Context, S.Set Calls)])] -> (Id, M.Map Context Id) -> [(Id, Context)]
 flattenDems dGrps (n, m) = map form fKs
   where
-    fKs = map fst $ fromJust $ lookup n dGrps
+    fKs = map fst $ fromJustfd $ lookup n dGrps
     form k = (fromMaybe n (M.lookup k m), k)
+
+fromJustfd (Just x) = x
+fromJustfd Nothing  = error "It was the one in flattenDems"
 
 -- Create a map from the demand on the result of a function to the
 -- speciallised name of that function
