@@ -1,4 +1,4 @@
-module Flite.Flic (flic, flicM, desugarProj) where
+module Flite.Flic (flic, flicM, pFlic, desugarProj) where
 
 import Flite.Syntax
 import Flite.Traversals
@@ -56,6 +56,19 @@ flicM p =
              >>= return . joinApps
              >>= return . spjCtrNotation
      return (prettyCore p0)
+
+pFlic :: Prog -> String
+pFlic p = snd (runFresh (pFlicM p) "v_" 0)
+
+pFlicM :: Prog -> Fresh String
+pFlicM p =
+  do p0 <- return (identifyFuncs p)
+             >>= desugarEqn
+             >>= desugarCase
+             >>= onExpM freshen
+             >>= inlineLinearLet
+             >>= return . joinApps
+     return (prettyProg p0)
 
 spjCtrNotation :: Prog -> Prog
 spjCtrNotation p = onExp trCtr p
