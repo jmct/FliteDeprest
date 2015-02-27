@@ -20,22 +20,13 @@ m ! k =
     Nothing -> error ("Key " ++ show k ++ " not in environment")
     Just v  -> v
 
-desugarForG :: Prog -> Fresh Prog
-desugarForG p =
-             return (identifyFuncs p)
-             >>= desugarEqn
-             >>= desugarCase
-             >>= onExpM freshen
-             >>= inlineLinearLet
-             >>= inlineSimpleLet
-             >>= return . joinApps
-
 desugarForDandT :: Prog -> Fresh Prog
 desugarForDandT p =
              return (identifyFuncs p)
              >>= desugarCase
              >>= desugarEqn
              >>= return . defunctionalise
+             >>= return . joinApps
 
 desugarProj :: Prog -> Prog
 desugarProj p = snd $ runFresh (desugarForDandT p) "x" 0

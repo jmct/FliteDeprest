@@ -58,22 +58,31 @@ getVar e = Nothing
 type Equation = ([Pat], Exp)
 
 isVar :: Equation -> Bool
-isVar (Var v:ps, e) = True
+isVar ((Var v):ps, e) = True
 isVar (App (Con c) args:ps, e) = False
+isVar ([Con v], e)             = False
+isVar v                       = error $ show v
 
 isCon :: Equation -> Bool
 isCon e = not (isVar e)
 
 getCon :: Equation -> (Id, [Pat])
 getCon (App (Con c) args:ps, e) = (c, args)
+getCon ([(Con c)], e)             = (c, [])
+
+lintPat :: Equation -> Equation
+lintPat (Con v:ps, e) = (App (Con v) []:ps, e)
+lintPat eq         = eq
 
 match :: [Id] -> [Equation] -> Fresh Exp
-match [] [q] = return (snd q)
-match (u:us) qs
-  | all isVar qs = match us [(ps, subst (Var u) v e) | (Var v:ps, e) <- qs]
-  | all isCon qs = do alts <- mapM (matchClause us) (groupEqns qs)
-                      return (Case (Var u) alts)
-match _ _ = error "Non-uniform pattern matching is disallowed!"
+match is eqs = match' is $ fmap lintPat eqs
+  where
+    match' [] [q] = return (snd q)
+    match' (u:us) qs
+      | all isVar qs = match' us [(ps, subst (Var u) v e) | (Var v:ps, e) <- qs]
+      | all isCon qs = do alts <- mapM (matchClause us) (groupEqns qs)
+                          return (Case (Var u) alts)
+    match' _ _ = error "Non-uniform pattern matching is disallowed!"
 
 groupEqns :: [Equation] -> [(Id, Int, [Equation])]
 groupEqns [] = []
