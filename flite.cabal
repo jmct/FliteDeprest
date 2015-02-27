@@ -84,4 +84,5 @@ Library
                     Flite.RedCompile, Flite.RedFrontend, Flite.RedSyntax,
                     Flite.State, Flite.Strictify, Flite.WriterState,
                     Flite.Dependency, Flite.IntInfer, Flite.Strictness, Flite.WorkerWrapper,
-                    Flite.TypeUtils, Flite.Projections.NiceType, Flite.AutoPar, Flite.ContextStrat
+                    Flite.TypeUtils, Flite.Projections.NiceType, Flite.AutoPar, Flite.ContextStrat,
+                    Flite.Projections.FunEnv
