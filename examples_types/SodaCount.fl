@@ -1,0 +1,126 @@
+{
+
+data List a = Cons a (List a) | Nil ;
+data Bool = True | False;
+
+tail (Cons x xs)  =  xs ;
+
+null Nil          =  True ;
+null (Cons x xs)  =  False ;
+
+single x  =  Cons x Nil ;
+
+length Nil = 0;
+length (Cons x xs) = (+) 1 (length xs);
+
+main  =  map gridCount hidden ;
+
+gridCount word  =
+  let {
+  d = transpose grid ;
+  } in let {
+       r = grid ;
+       } in let {
+            dr = diagonals grid ;
+            } in let {
+                 ur    =  diagonals (reverse grid) ;
+                 } in let {
+                      dirs  =  Cons r (Cons d (Cons dr (Cons ur Nil))) ;
+                      } in let {
+                           drow  =  reverse word ;
+                           } in 
+                           (+) (sum (map (dirCount word) dirs))
+                               (sum (map (dirCount drow) dirs)) ;
+
+sum xs  =  foldr plus 0 xs ;
+
+plus x y = (+) x y ;
+
+foldr f z Nil     =  z ;
+foldr f z (Cons x xs)  =  f x (foldr f z xs) ;
+
+map f Nil          =  Nil ;
+map f (Cons x xs)  =  Cons (f x) (map f xs) ;
+
+transpose (Cons r rs) =  case null rs of {
+                         True  -> map single r ;
+                         False -> zipWith Cons r (transpose rs) ;
+                         } ;
+
+ 
+diagonals (Cons r rs) =  case null rs of {
+                         True  -> map single r ;
+                         False -> zipInit r (Cons Nil (diagonals rs)) ;
+                         } ;
+
+reverse xs  =  foldl (flip Cons) Nil xs ;
+
+foldl f a Nil          =  a ;
+foldl f a (Cons x xs)  =  foldl f (f a x) xs ;
+
+flip f x y  =  f y x ;
+
+zipWith f Nil         Nil          =  Nil ;
+zipWith f (Cons x xs) (Cons y ys)  =  Cons (f x y) (zipWith f xs ys) ;
+
+zipInit Nil         ys           =  ys ;
+zipInit (Cons x xs) (Cons y ys)  =  Cons (Cons x y) (zipInit xs ys) ;
+
+dirCount xs yss  =  sum (map (rowCount xs) yss) ;
+
+rowCount xs ys  =  count (prefix xs) (suffixes ys) ;
+
+count p Nil  =  0 ;
+count p (Cons x xs)  =
+  let { c  =  count p xs ; } in
+  case p x of {
+  True -> (+) 1 c ;
+  False -> c ;
+  } ;
+
+suffixes xs   =  case null xs of {
+                 True  -> Nil ;
+                 False -> Cons xs (suffixes (tail xs)) ;
+                 } ;
+
+prefix Nil         ys           =  True ;
+prefix (Cons x xs) Nil          =  False ;
+prefix (Cons x xs) (Cons y ys)  =  case ((==) x y) of {
+                                   True  -> prefix xs ys ;
+                                   False -> False ;
+                                   } ;
+
+grid =
+  (Cons "YIOMRESKST"
+  (Cons "AEHYGEHEDW"
+  (Cons "ZFIACNITIA"
+  (Cons "NTOCOMVOOR"
+  (Cons "ERDLOCENSM"
+  (Cons "ZOURPSRNDA"
+  (Cons "OYASMOYEDL"
+  (Cons "RNDENLOAIT"
+  (Cons "FIWINTERRC"
+  (Cons "FEZEERFTFI"
+  (Cons "IIDTPHUBRL"
+  (Cons "CNOHSGEION"
+  (Cons "EGMOPSTASO"
+  (Cons "TGFFCISHTH"
+  (Cons "OTBCSSNOWI"
+  Nil))))))))))))))) ;
+
+hidden =
+  (Cons "COSY"
+  (Cons "SOFT"
+  (Cons "WINTER"
+  (Cons "SHIVER"
+  (Cons "FROZEN"
+  (Cons "SNOW"
+  (Cons "WARM"
+  (Cons "HEAT"
+  (Cons "COLD"
+  (Cons "FREEZE"
+  (Cons "FROST"
+  (Cons "ICE"
+  Nil)))))))))))) ;
+
+}

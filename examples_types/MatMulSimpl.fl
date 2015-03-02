@@ -1,0 +1,22 @@
+{
+
+data List a  =  Cons a (List a) | Nil ;
+
+matMul (Cons x xs) yss  =  mulRow yss x ;
+
+mulRow (Cons y ys) xs  =  dotProduct xs y ;
+
+dotProduct xs ys  =  sum xs ;
+
+idList Nil = Nil;
+idList (Cons x xs) = Cons x (idList xs);
+
+zipWith f xs ys =  xs ;
+
+const x y = x;
+
+sum xs = 0;
+
+main  = idList (matMul (Cons (Cons 1 Nil) Nil) (Cons (Cons 1 Nil) Nil));
+
+}

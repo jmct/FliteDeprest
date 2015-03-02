@@ -1,0 +1,46 @@
+{
+
+data List a  =  Cons a (List a) | Nil ;
+data Bool    =  True | False ;
+
+null Nil          =  True ;
+null (Cons x xs)  =  False ;
+
+single x  =  Cons x Nil ;
+
+matMul xss yss  =  map (mulRow (transpose yss)) xss ;
+
+mulRow yssTrans xs  =  map (dotProduct xs) yssTrans ;
+
+dotProduct xs ys  =  sum (zipWith times xs ys) ;
+
+times x y  =  (*) x y ;
+
+transpose (Cons r rs) =  case null rs of {
+                         True -> map single r ;
+                         False -> zipWith Cons r (transpose rs) ;
+                         } ;
+
+zipWith f Nil         Nil          =  Nil ;
+zipWith f (Cons x xs) (Cons y ys)  =  Cons (f x y) (zipWith f xs ys) ;
+
+sum xs  =  foldr plus 0 xs ;
+
+plus x y  =  (+) x y ;
+
+foldr f z Nil     =  z ;
+foldr f z (Cons x xs)  =  f x (foldr f z xs) ;
+
+map f Nil          =  Nil ;
+map f (Cons x xs)  =  Cons (f x) (map f xs) ;
+
+onesMat n  =  replicate n (replicate n 1) ;
+
+replicate n x  =  case ((==) n 0) of {
+                  True  -> Nil ;
+                  False -> Cons x (replicate ((-) n 1) x) ;
+                  } ;
+
+main  =  matMul (onesMat 50) (onesMat 50) ;
+
+}
