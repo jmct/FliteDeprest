@@ -128,9 +128,9 @@ primTrans :: M.Map Context Context
 primTrans = M.fromList
   [ (CBot,                                        CProd [CStr CBot,       CStr CBot])
   , (CProd [],                                    CProd [CStr (CProd []), CStr (CProd [])])
-  , (CSum [("True",CProd []),("False",CProd [])], CProd [CStr (CProd []), CLaz (CProd [])])
-  , (CSum [("True", CBot),   ("False",CProd [])], CProd [CStr (CBot),     CLaz (CBot)])
-  , (CSum [("True",CProd []),("False",CBot)],     CProd [CStr (CBot),     CStr (CBot)])
+  , (CSum [("True",CProd []),("False",CProd [])], CProd [CStr (CProd []), CStr (CProd [])])
+  , (CSum [("True", CBot),   ("False",CProd [])], CProd [CStr (CProd []), CStr (CProd [])])
+  , (CSum [("True",CProd []),("False",CBot)],     CProd [CStr (CProd []), CStr (CProd [])])
   , (CSum [("True", CBot),   ("False",CBot)],     CProd [CStr (CBot),     CStr (CBot)])
   ]
 
