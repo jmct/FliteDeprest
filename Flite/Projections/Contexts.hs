@@ -312,6 +312,10 @@ mkAbs = transform f
           f (CStr c)   = CLaz (mkBot c)
           f (CSum cs)  = CSum $ map mkAbsCs cs
           f c          = c
+
+mkPrimStrict = transform f
+    where f (CLaz c) = CStr c
+          f c        = c
 {-
 mkAbs (CLaz c)   = CLaz (mkBot c)
 mkAbs (CSum cs)  = CSum $ map mkAbsCs cs

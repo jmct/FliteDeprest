@@ -235,8 +235,10 @@ fixSet' f p = let p' = f p in
 
 
 --gather1 :: GathEnv -> FunEnv -> Prog -> [(String, Context)] -> S.Set (String, Context)
-gatherProg env phi decs = fixSet' (concatMapSet f) (S.singleton (("main", CProd []), S.empty))
+gatherProg env phi decs = fixSet' (concatMapSet f) (S.singleton (("main", mainDemand), S.empty))
   where
+    mainDemand = mkPrimStrict $ getCont (fst env) $ (snd $ fromMaybe err $ M.lookup "main" $ snd env)
+    err        = error "Return type for main is not defined?!\nPlease write a main function"
     f ((name, k), calls)
         | name `elem` prims = S.empty
         | S.null calls      = S.fromList $ ((name, k), S.fromList calls') : map g calls'
